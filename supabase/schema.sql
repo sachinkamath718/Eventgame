@@ -83,8 +83,12 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 -- ─── Enable Realtime ──────────────────────────────────────────────────────────
-ALTER PUBLICATION supabase_realtime ADD TABLE registrations;
-ALTER PUBLICATION supabase_realtime ADD TABLE sessions;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE registrations;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE sessions;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ─── Indexes ──────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_registrations_event_id  ON registrations(event_id);
@@ -102,6 +106,14 @@ ALTER TABLE registrations    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions         ENABLE ROW LEVEL SECURITY;
 
 -- Public (participant) policies
+DROP POLICY IF EXISTS "Public read active events"   ON events;
+DROP POLICY IF EXISTS "Public read prizes"          ON prizes;
+DROP POLICY IF EXISTS "Public read rules"           ON designation_rules;
+DROP POLICY IF EXISTS "Public insert registrations" ON registrations;
+DROP POLICY IF EXISTS "Public read registrations"   ON registrations;
+DROP POLICY IF EXISTS "Public update registrations" ON registrations;
+DROP POLICY IF EXISTS "Public read sessions"        ON sessions;
+
 CREATE POLICY "Public read active events"   ON events        FOR SELECT USING (is_active = true);
 CREATE POLICY "Public read prizes"          ON prizes        FOR SELECT USING (true);
 CREATE POLICY "Public read rules"           ON designation_rules FOR SELECT USING (true);
@@ -111,8 +123,15 @@ CREATE POLICY "Public update registrations" ON registrations FOR UPDATE USING (t
 CREATE POLICY "Public read sessions"        ON sessions      FOR SELECT USING (true);
 
 -- Service role (admin) policies
+DROP POLICY IF EXISTS "Service all events"        ON events;
+DROP POLICY IF EXISTS "Service all prizes"        ON prizes;
+DROP POLICY IF EXISTS "Service all rules"         ON designation_rules;
+DROP POLICY IF EXISTS "Service all registrations" ON registrations;
+DROP POLICY IF EXISTS "Service all sessions"      ON sessions;
+
 CREATE POLICY "Service all events"        ON events        FOR ALL USING (true);
 CREATE POLICY "Service all prizes"        ON prizes        FOR ALL USING (true);
 CREATE POLICY "Service all rules"         ON designation_rules FOR ALL USING (true);
 CREATE POLICY "Service all registrations" ON registrations FOR ALL USING (true);
 CREATE POLICY "Service all sessions"      ON sessions      FOR ALL USING (true);
+

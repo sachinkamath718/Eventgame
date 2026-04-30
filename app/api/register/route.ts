@@ -1,110 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { determinePrize } from '@/lib/prize-logic'
+import { assignPrize } from '@/lib/prize-logic'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { eventId, name, email, designation, phone_number, company, ...extraFields } = body
+    const { event_id, form_data } = body
 
-    // Validate mandatory fields
-    if (!eventId || !name || !email || !designation || !phone_number) {
-      return NextResponse.json(
-        { error: 'name, email, designation, and phone_number are required' },
-        { status: 400 }
-      )
+    if (!event_id || !form_data) {
+      return NextResponse.json({ error: 'event_id and form_data required' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
 
-    // Fetch event with prizes and rules
-    const { data: event, error: evErr } = await supabase
+    const { data: event } = await supabase
       .from('events')
-      .select('*, prizes(*), designation_rules(*)')
-      .eq('id', eventId)
-      .eq('is_active', true)
+      .select('*, prizes(*), designation_rules(*), form_fields')
+      .eq('id', event_id)
       .single()
 
-    if (evErr || !event) {
-      return NextResponse.json({ error: 'Event not found or inactive' }, { status: 404 })
+    if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+
+    // Extract standard fields using the event's field mapping
+    const mappings: Array<{ fieldKey: string; formLabel: string }> = event.form_fields || []
+    const getValue = (key: string) => {
+      const m = mappings.find(x => x.fieldKey === key)
+      return m ? (form_data[m.formLabel] || form_data[key] || '') : (form_data[key] || '')
     }
 
-    // Prevent duplicate registration per event
+    const name        = getValue('name')        || 'Unknown'
+    const email       = (getValue('email') || '').toLowerCase().trim()
+    const designation = getValue('designation') || 'Unknown'
+    const phone       = getValue('phone_number')|| ''
+    const company     = getValue('company')     || ''
+
+    if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+
+    // Duplicate check
     const { data: existing } = await supabase
       .from('registrations')
-      .select('id, prize_name, prize_rank_won, game_result, prize_image_url, prize_description')
-      .eq('event_id', eventId)
-      .eq('email', email.toLowerCase().trim())
-      .single()
+      .select('id')
+      .eq('event_id', event_id)
+      .eq('email', email)
+      .maybeSingle()
 
-    if (existing) {
-      return NextResponse.json({
-        registrationId: existing.id,
-        prizeName: existing.prize_name,
-        prizeRank: existing.prize_rank_won,
-        prizeImageUrl: existing.prize_image_url,
-        prizeDescription: existing.prize_description,
-        won: existing.game_result === 'won',
-        alreadyRegistered: true,
-      })
-    }
+    if (existing) return NextResponse.json({ registrationId: existing.id, duplicate: true })
 
-    // Determine prize based on designation
-    const rules = event.designation_rules || []
-    const { prizeRank, won } = determinePrize(designation, rules)
+    const prize = assignPrize(designation, event.designation_rules || [], event.prizes || [])
 
-    // Find matching prize from DB
-    const prizes: Array<{
-      id: string
-      rank: number
-      name: string
-      description?: string
-      image_url?: string
-      is_consolation: boolean
-      is_grand_prize: boolean
-    }> = event.prizes || []
-
-    const consolation = prizes.find((p) => p.is_consolation)
-    const matchedPrize = won
-      ? prizes.find((p) => p.rank === prizeRank && !p.is_consolation && !p.is_grand_prize)
-      : consolation
-
-    // Insert registration
-    const { data: registration, error: regErr } = await supabase
+    const { data: reg, error: regErr } = await supabase
       .from('registrations')
       .insert({
-        event_id: eventId,
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        designation: designation.trim(),
-        phone_number: phone_number.trim(),
-        company: company?.trim() || null,
-        form_data: extraFields,
-        prize_rank_won: won ? prizeRank : (consolation ? 5 : null),
-        prize_id: matchedPrize?.id || null,
-        prize_name: matchedPrize?.name || (won ? 'Prize' : 'Better Luck Next Time'),
-        prize_description: matchedPrize?.description || null,
-        prize_image_url: matchedPrize?.image_url || null,
-        game_result: won ? 'won' : 'lost',
+        event_id, name, email, designation,
+        phone_number: phone, company,
+        form_data,
+        prize_rank_won:    prize?.rank         ?? null,
+        prize_id:          prize?.id           ?? null,
+        prize_name:        prize?.name         ?? null,
+        prize_description: prize?.description  ?? null,
+        prize_image_url:   prize?.image_url    ?? null,
+        game_result:       prize && !prize.is_consolation ? 'won' : 'lost',
       })
-      .select()
-      .single()
+      .select().single()
 
-    if (regErr || !registration) {
-      return NextResponse.json({ error: 'Failed to register' }, { status: 500 })
-    }
+    if (regErr) return NextResponse.json({ error: regErr.message }, { status: 500 })
 
-    return NextResponse.json({
-      registrationId: registration.id,
-      prizeName: registration.prize_name,
-      prizeRank: registration.prize_rank_won,
-      prizeImageUrl: registration.prize_image_url,
-      prizeDescription: registration.prize_description,
-      won,
-      alreadyRegistered: false,
-    })
+    return NextResponse.json({ registrationId: reg.id })
   } catch (e) {
-    console.error('[POST /api/register]', e)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[register]', e)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
