@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+
+/** Admin CRUD for events */
+export async function GET() {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('events')
+    .select('*, prizes(*), designation_rules(*)')
+    .order('created_at', { ascending: false })
+  return NextResponse.json({ events: data })
+}
+
+export async function POST(req: NextRequest) {
+  const body = await req.json()
+  const supabase = createServiceClient()
+
+  const { prizes, designation_rules, ...eventData } = body
+
+  // Create event
+  const { data: event, error } = await supabase
+    .from('events')
+    .insert(eventData)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Insert prizes
+  if (prizes?.length) {
+    await supabase.from('prizes').insert(
+      prizes.map((p: Record<string, unknown>) => ({ ...p, event_id: event.id }))
+    )
+  }
+
+  // Insert designation rules
+  if (designation_rules?.length) {
+    await supabase.from('designation_rules').insert(
+      designation_rules.map((r: Record<string, unknown>) => ({ ...r, event_id: event.id }))
+    )
+  }
+
+  return NextResponse.json({ event })
+}
+
+export async function PUT(req: NextRequest) {
+  const body = await req.json()
+  const { id, prizes, designation_rules, ...eventData } = body
+  const supabase = createServiceClient()
+
+  await supabase.from('events').update(eventData).eq('id', id)
+
+  if (prizes) {
+    await supabase.from('prizes').delete().eq('event_id', id)
+    if (prizes.length) {
+      await supabase.from('prizes').insert(prizes.map((p: Record<string, unknown>) => ({ ...p, event_id: id })))
+    }
+  }
+
+  if (designation_rules) {
+    await supabase.from('designation_rules').delete().eq('event_id', id)
+    if (designation_rules.length) {
+      await supabase.from('designation_rules').insert(
+        designation_rules.map((r: Record<string, unknown>) => ({ ...r, event_id: id }))
+      )
+    }
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  const supabase = createServiceClient()
+  await supabase.from('events').delete().eq('id', id)
+  return NextResponse.json({ ok: true })
+}
