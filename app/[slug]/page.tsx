@@ -25,11 +25,15 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/admin/events')
+    fetch(`/api/event/${slug}`)
       .then(r => r.json())
       .then(d => {
-        const ev = (d.events || []).find((e: Event) => e.slug === slug)
-        if (ev) { setEvent(ev); const init: Record<string, string> = {}; (ev.form_fields || []).forEach((f: FieldMapping) => { init[f.formLabel] = '' }); setValues(init) }
+        if (d.event) {
+          setEvent(d.event)
+          const init: Record<string, string> = {}
+          ;(d.event.form_fields || []).forEach((f: FieldMapping) => { init[f.formLabel] = '' })
+          setValues(init)
+        }
       })
       .finally(() => setLoading(false))
   }, [slug])
