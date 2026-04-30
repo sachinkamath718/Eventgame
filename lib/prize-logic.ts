@@ -1,3 +1,44 @@
+export type Prize = {
+  id: string
+  rank: number
+  name: string
+  description?: string
+  image_url?: string
+  is_consolation?: boolean
+}
+
+export type DesignationRule = {
+  designations: string[]
+  prize_rank: number
+  win_probability: number
+}
+
+/**
+ * Assigns a full prize object to a participant based on their designation.
+ * Returns the matched prize, or null (consolation).
+ */
+export function assignPrize(
+  designation: string,
+  rules: DesignationRule[],
+  prizes: Prize[]
+): Prize | null {
+  const rule = rules.find(r =>
+    r.designations.some(d => d.toLowerCase() === designation.toLowerCase())
+  )
+
+  if (!rule) {
+    // No matching rule → consolation
+    return prizes.find(p => p.is_consolation) ?? null
+  }
+
+  const roll = Math.random() * 100
+  const won  = roll < rule.win_probability
+
+  if (!won) return prizes.find(p => p.is_consolation) ?? null
+
+  return prizes.find(p => p.rank === rule.prize_rank) ?? null
+}
+
 /**
  * Determines which prize a participant wins based on their designation.
  * Returns { prizeRank, won } where won=false means consolation prize.

@@ -1,21 +1,29 @@
--- Lucky Draw Platform — Updated Schema (v2)
+-- Lucky Draw Platform — Schema v3 (Google Forms Flow)
 -- Run this in your Supabase SQL editor
 
 -- ─── Events ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS events (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT NOT NULL,
-  slug        TEXT NOT NULL UNIQUE,
-  description TEXT,
-  game_type   TEXT NOT NULL DEFAULT 'spin_wheel'
-               CHECK (game_type IN ('spin_wheel','number_match','anime_match')),
-  form_fields JSONB NOT NULL DEFAULT '[]',
-  ui_config   JSONB NOT NULL DEFAULT '{}',
-  linkedin_company_url  TEXT,
-  linkedin_share_text   TEXT,
-  is_active   BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  slug            TEXT NOT NULL UNIQUE,
+  game_type       TEXT NOT NULL DEFAULT 'spin_wheel'
+                   CHECK (game_type IN ('spin_wheel','number_match','anime_match')),
+  -- Google Forms integration
+  google_form_url TEXT,
+  webhook_secret  TEXT NOT NULL DEFAULT gen_random_uuid()::TEXT,
+  -- field_mappings: [{ formLabel: "Work Email", fieldKey: "email", required: true }, ...]
+  form_fields     JSONB NOT NULL DEFAULT '[
+    {"formLabel":"Full Name","fieldKey":"name","required":true},
+    {"formLabel":"Work Email","fieldKey":"email","required":true},
+    {"formLabel":"Phone Number","fieldKey":"phone_number","required":true},
+    {"formLabel":"Company","fieldKey":"company","required":false},
+    {"formLabel":"Designation","fieldKey":"designation","required":true}
+  ]',
+  -- UI customisation
+  ui_config       JSONB NOT NULL DEFAULT '{}',
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ─── Prizes ──────────────────────────────────────────────────────────────────
@@ -48,8 +56,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   event_id              UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   name                  TEXT NOT NULL,
   email                 TEXT NOT NULL,
-  designation           TEXT NOT NULL,
-  phone_number          TEXT NOT NULL,
+  designation           TEXT NOT NULL DEFAULT 'Unknown',
+  phone_number          TEXT NOT NULL DEFAULT '',
   company               TEXT,
   form_data             JSONB NOT NULL DEFAULT '{}',
   prize_rank_won        INT,
@@ -79,27 +87,28 @@ ALTER PUBLICATION supabase_realtime ADD TABLE registrations;
 ALTER PUBLICATION supabase_realtime ADD TABLE sessions;
 
 -- ─── Indexes ──────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_registrations_event_id ON registrations(event_id);
-CREATE INDEX IF NOT EXISTS idx_registrations_email ON registrations(email);
-CREATE INDEX IF NOT EXISTS idx_sessions_event_id ON sessions(event_id);
-CREATE INDEX IF NOT EXISTS idx_prizes_event_id ON prizes(event_id);
-CREATE INDEX IF NOT EXISTS idx_designation_rules_event_id ON designation_rules(event_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_event_id  ON registrations(event_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_email     ON registrations(email);
+CREATE INDEX IF NOT EXISTS idx_sessions_event_id       ON sessions(event_id);
+CREATE INDEX IF NOT EXISTS idx_prizes_event_id         ON prizes(event_id);
+CREATE INDEX IF NOT EXISTS idx_designation_rules_event ON designation_rules(event_id);
+CREATE INDEX IF NOT EXISTS idx_events_slug             ON events(slug);
 
 -- ─── RLS ──────────────────────────────────────────────────────────────────────
-ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE prizes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prizes           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE designation_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE registrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE registrations    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions         ENABLE ROW LEVEL SECURITY;
 
 -- Public (participant) policies
-CREATE POLICY "Public read active events"      ON events        FOR SELECT USING (is_active = true);
-CREATE POLICY "Public read prizes"             ON prizes        FOR SELECT USING (true);
-CREATE POLICY "Public read rules"              ON designation_rules FOR SELECT USING (true);
-CREATE POLICY "Public insert registrations"    ON registrations FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public read registrations"      ON registrations FOR SELECT USING (true);
-CREATE POLICY "Public update registrations"    ON registrations FOR UPDATE USING (true);
-CREATE POLICY "Public read sessions"           ON sessions      FOR SELECT USING (true);
+CREATE POLICY "Public read active events"   ON events        FOR SELECT USING (is_active = true);
+CREATE POLICY "Public read prizes"          ON prizes        FOR SELECT USING (true);
+CREATE POLICY "Public read rules"           ON designation_rules FOR SELECT USING (true);
+CREATE POLICY "Public insert registrations" ON registrations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public read registrations"   ON registrations FOR SELECT USING (true);
+CREATE POLICY "Public update registrations" ON registrations FOR UPDATE USING (true);
+CREATE POLICY "Public read sessions"        ON sessions      FOR SELECT USING (true);
 
 -- Service role (admin) policies
 CREATE POLICY "Service all events"        ON events        FOR ALL USING (true);
