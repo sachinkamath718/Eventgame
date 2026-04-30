@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
 
   const { prizes, designation_rules, ...eventData } = body
 
+  // Ensure slug is unique — append -2, -3, etc. if needed
+  let finalSlug = eventData.slug as string
+  let attempt   = 0
+  while (true) {
+    const { data: existing } = await supabase
+      .from('events').select('id').eq('slug', finalSlug).maybeSingle()
+    if (!existing) break
+    attempt++
+    finalSlug = `${eventData.slug}-${attempt + 1}`
+  }
+  eventData.slug = finalSlug
+
   // Create event
   const { data: event, error } = await supabase
     .from('events')
@@ -42,6 +54,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ event })
 }
+
 
 export async function PUT(req: NextRequest) {
   const body = await req.json()
