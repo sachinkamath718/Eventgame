@@ -86,10 +86,31 @@ export default function EditEventPage() {
   }
 
   function downloadQR() {
-    const svg = document.getElementById('event-detail-qr')
+    const svg = document.getElementById('event-detail-qr') as SVGElement | null
     if (!svg) return
-    const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${slug}-qr.svg`; a.click()
+    const size = 400
+    const canvas = document.createElement('canvas')
+    canvas.width = size; canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(svgBlob)
+    const img = new Image()
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(img, 0, 0, size, size)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => {
+        if (!blob) return
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = `${slug}-qr.png`
+        a.click()
+      }, 'image/png')
+    }
+    img.src = url
   }
 
   const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '📊 QR Code']
@@ -222,9 +243,12 @@ export default function EditEventPage() {
                 <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(248,250,252,0.45)' }}>Scans to:</p>
                 <code style={{ fontSize: '0.85rem', color: '#a5f3fc', wordBreak: 'break-all' }}>{eventUrl}</code>
               </div>
+              <div style={{ padding: '0.75rem 1rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '0.65rem', fontSize: '0.8rem', color: '#fcd34d' }}>
+                💡 Tip: Download as PNG and print/display it. Participants scan it with their phone camera.
+              </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <a href={eventUrl} target="_blank" rel="noreferrer" style={{ padding: '0.65rem 1.25rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.65rem', color: '#a78bfa', textDecoration: 'none', fontSize: '0.875rem' }}>🔗 Open Page</a>
-                <button onClick={downloadQR} style={{ padding: '0.65rem 1.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '0.65rem', color: '#6ee7b7', fontSize: '0.875rem', cursor: 'pointer' }}>⬇ Download QR</button>
+                <button onClick={downloadQR} style={{ padding: '0.65rem 1.25rem', background: 'linear-gradient(135deg,#059669,#0d9488)', border: 'none', borderRadius: '0.65rem', color: '#fff', fontSize: '0.875rem', cursor: 'pointer', fontWeight: 700 }}>⬇ Download PNG</button>
               </div>
             </div>
           )}

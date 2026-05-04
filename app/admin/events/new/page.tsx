@@ -361,12 +361,33 @@ export default function NewEventPage() {
                   🔗 Open Event Page
                 </a>
                 <button onClick={() => {
-                  const svg = document.getElementById('event-qr')
+                  const svg = document.getElementById('event-qr') as SVGElement | null
                   if (!svg) return
-                  const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' })
-                  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${saved.slug}-qr.svg`; a.click()
-                }} style={{ padding: '0.6rem 1.25rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '0.65rem', color: '#6ee7b7', fontSize: '0.875rem', cursor: 'pointer' }}>
-                  ⬇ Download QR
+                  const size = 400
+                  const canvas = document.createElement('canvas')
+                  canvas.width = size; canvas.height = size
+                  const ctx = canvas.getContext('2d')
+                  if (!ctx) return
+                  const svgData = new XMLSerializer().serializeToString(svg)
+                  const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const img = new Image()
+                  img.onload = () => {
+                    ctx.fillStyle = '#ffffff'
+                    ctx.fillRect(0, 0, size, size)
+                    ctx.drawImage(img, 0, 0, size, size)
+                    URL.revokeObjectURL(url)
+                    canvas.toBlob(b => {
+                      if (!b) return
+                      const a = document.createElement('a')
+                      a.href = URL.createObjectURL(b)
+                      a.download = `${saved.slug}-qr.png`
+                      a.click()
+                    }, 'image/png')
+                  }
+                  img.src = url
+                }} style={{ padding: '0.6rem 1.25rem', background: 'linear-gradient(135deg,#059669,#0d9488)', border: 'none', borderRadius: '0.65rem', color: '#fff', fontSize: '0.875rem', cursor: 'pointer', fontWeight: 700 }}>
+                  ⬇ Download PNG
                 </button>
               </div>
             </div>
