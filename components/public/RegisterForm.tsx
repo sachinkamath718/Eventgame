@@ -22,6 +22,7 @@ interface RegResult {
   prizeImageUrl?: string
   prizeDescription?: string
   won: boolean
+  name?: string
   alreadyRegistered?: boolean
 }
 
@@ -61,7 +62,8 @@ export default function RegisterForm({ event }: Props) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: event.id, ...form }),
+        // FIX: match what the API expects — event_id + form_data
+        body: JSON.stringify({ event_id: event.id, form_data: form }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -74,8 +76,7 @@ export default function RegisterForm({ event }: Props) {
   }
 
   if (result) {
-    // Bubble result up — parent handles stage transition
-    // Use custom event for decoupled communication
+    // Bubble result up to EventClient via custom event
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('registration-complete', { detail: result }))
     }
