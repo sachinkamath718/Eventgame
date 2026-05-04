@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { DEFAULT_DESIGNATION_GROUPS } from '@/lib/prize-logic'
@@ -79,10 +79,12 @@ export default function NewEventPage() {
 
   // Saved event
   const [saved, setSaved]     = useState<{ id: string; slug: string } | null>(null)
+  const [origin, setOrigin]   = useState('')
 
-  const rawUrl  = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
-  const appUrl   = rawUrl.startsWith('http') ? rawUrl : rawUrl ? `https://${rawUrl}` : 'https://eventgame-git-main-sachinkamath718s-projects.vercel.app'
-  const eventUrl = saved ? `${appUrl}/${saved.slug}` : ''
+  // Get the real domain at runtime — no env var needed
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+
+  const eventUrl = saved ? `${origin}/${saved.slug}` : ''
 
   // ── Step 1: Create event skeleton ─────────────────────────────────────────
   async function goStep2() {
@@ -201,7 +203,7 @@ export default function NewEventPage() {
                 <input id="event-slug" style={F} value={eventSlug} placeholder="techsummit-2025-lucky-draw"
                   onChange={e => setSlug(slugify(e.target.value))} />
                 <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', display: 'block', marginTop: '0.25rem' }}>
-                  QR will link to: <strong>{appUrl}/{eventSlug || slugify(name) || 'your-event'}</strong>
+                  QR will link to: <strong>{origin}/{eventSlug || slugify(name) || 'your-event'}</strong>
                 </span>
               </div>
               <button id="step1-next" onClick={goStep2} disabled={saving} style={btnPrimary}>

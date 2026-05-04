@@ -45,9 +45,12 @@ export default function EditEventPage() {
   const [rules, setRules]   = useState<Rule[]>([])
   const [fields, setFields] = useState<FieldMapping[]>([])
 
-  const rawUrl   = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
-  const appUrl   = rawUrl.startsWith('http') ? rawUrl : rawUrl ? `https://${rawUrl}` : 'https://eventgame-git-main-sachinkamath718s-projects.vercel.app'
-  const eventUrl = appUrl ? `${appUrl}/${slug}` : `https://eventgame-git-main-sachinkamath718s-projects.vercel.app/${slug}`
+  const [origin, setOrigin]   = useState('')
+
+  // Get the real domain at runtime — no env var needed
+  useEffect(() => { if (typeof window !== 'undefined') setOrigin(window.location.origin) }, [])
+
+  const eventUrl = origin && slug ? `${origin}/${slug}` : ''
 
   useEffect(() => {
     fetch('/api/admin/events').then(r => r.json()).then(data => {
