@@ -80,7 +80,8 @@ export default function NewEventPage() {
   // Saved event
   const [saved, setSaved]     = useState<{ id: string; slug: string } | null>(null)
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
+  const rawUrl  = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '')
+  const appUrl   = rawUrl.startsWith('http') ? rawUrl : rawUrl ? `https://${rawUrl}` : 'https://eventgame-git-main-sachinkamath718s-projects.vercel.app'
   const eventUrl = saved ? `${appUrl}/${saved.slug}` : ''
 
   // ── Step 1: Create event skeleton ─────────────────────────────────────────
