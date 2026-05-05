@@ -7,7 +7,6 @@ interface Props {
   onDone: () => void
 }
 
-const NUMBERS = ['7', '3', '9', '5', '2', '8', '4', '6']
 const WIN_COMBO = ['⭐', '⭐', '⭐']
 const LOSE_COMBOS = [
   ['🍋', '🍒', '7️⃣'],
@@ -16,33 +15,36 @@ const LOSE_COMBOS = [
 ]
 
 export default function NumberMatchGame({ won, onDone }: Props) {
+  // FIX: compute slots once on mount, not on every render
+  const [slots] = useState<string[]>(() =>
+    won ? WIN_COMBO : LOSE_COMBOS[Math.floor(Math.random() * LOSE_COMBOS.length)]
+  )
   const [revealed, setRevealed] = useState<(string | null)[]>([null, null, null])
   const [flipping, setFlipping] = useState<boolean[]>([false, false, false])
   const [done, setDone] = useState(false)
-
-  const slots = won ? WIN_COMBO : LOSE_COMBOS[Math.floor(Math.random() * LOSE_COMBOS.length)]
 
   function revealSlot(idx: number) {
     if (revealed[idx] !== null || done) return
     setFlipping(f => { const n = [...f]; n[idx] = true; return n })
 
     setTimeout(() => {
-      setRevealed(r => { const n = [...r]; n[idx] = slots[idx]; return n })
+      setRevealed(r => {
+        const n = [...r]
+        n[idx] = slots[idx]
+        // Check if all revealed after this update
+        if (n.every(v => v !== null)) {
+          setTimeout(() => setDone(true), 600)
+        }
+        return n
+      })
       setFlipping(f => { const n = [...f]; n[idx] = false; return n })
-
-      // Check if all revealed
-      const next = [...revealed]
-      next[idx] = slots[idx]
-      if (next.every(v => v !== null)) {
-        setTimeout(() => setDone(true), 600)
-      }
     }, 350)
   }
 
   function revealAll() {
     if (done) return
-    ;[0, 1, 2].forEach((i, delay) => {
-      setTimeout(() => revealSlot(i), delay * 300)
+    ;[0, 1, 2].forEach((i) => {
+      setTimeout(() => revealSlot(i), i * 300)
     })
   }
 
@@ -63,7 +65,6 @@ export default function NumberMatchGame({ won, onDone }: Props) {
               borderRadius: '1rem',
               cursor: revealed[idx] !== null ? 'default' : 'pointer',
               perspective: 600,
-              transition: 'transform 0.2s',
             }}
           >
             <div style={{
@@ -101,7 +102,6 @@ export default function NumberMatchGame({ won, onDone }: Props) {
           background: won ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.15)',
           border: `1px solid ${won ? 'rgba(245,158,11,0.4)' : 'rgba(100,116,139,0.3)'}`,
           color: won ? '#fcd34d' : '#94a3b8',
-          fontFamily: 'var(--font-heading)',
           fontWeight: 700,
           fontSize: '1rem',
           textAlign: 'center',
