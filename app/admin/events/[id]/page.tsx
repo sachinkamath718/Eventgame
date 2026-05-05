@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
+import { DEFAULT_DESIGNATION_GROUPS } from '@/lib/prize-logic'
 
 const GAMES = [
   { id: 'spin_wheel',   label: '🎡 Spin Wheel',  desc: 'Classic spinning wheel' },
@@ -10,51 +11,64 @@ const GAMES = [
 ]
 
 type FieldMapping = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options?: string }
-type Rule = { label: string; designations: string; prize_rank: number; win_probability: number }
+type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
 type Prize = { rank: number; name: string; description: string; image_url: string; is_consolation: boolean; is_grand_prize: boolean }
 
-const F: React.CSSProperties = { width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)', borderRadius: '0.75rem', color: '#f8fafc', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box' }
-const L: React.CSSProperties = { display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'rgba(248,250,252,0.55)', marginBottom: '0.4rem' }
+const F: React.CSSProperties = {
+  width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.07)',
+  border: '1.5px solid rgba(255,255,255,0.12)', borderRadius: '0.75rem',
+  color: '#f8fafc', fontSize: '0.875rem', outline: 'none', boxSizing: 'border-box',
+}
+const L: React.CSSProperties = {
+  display: 'block', fontSize: '0.78rem', fontWeight: 600,
+  color: 'rgba(248,250,252,0.55)', marginBottom: '0.4rem',
+}
 
 export default function EditEventPage() {
-  const router  = useRouter()
-  const params  = useParams()
-  const id      = params.id as string
-  const [tab, setTab]       = useState(0)
+  const router = useRouter()
+  const params = useParams()
+  const id     = params.id as string
+
+  const [tab, setTab]         = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
-  const [slug, setSlug]       = useState('')
-
-  const [name, setName]           = useState('')
-  const [isActive, setIsActive]   = useState(true)
-  const [bgColor, setBg]          = useState('#0a0a1a')
-  const [bgColor2, setBg2]        = useState('#312e81')
-  const [accent, setAccent]       = useState('#f59e0b')
-  const [heading, setHeading]     = useState('')
-  const [logoUrl, setLogo]        = useState('')
-  const [footerText, setFooter]   = useState('')
-  const [gameType, setGame]       = useState('spin_wheel')
-  const [prizes, setPrizes]       = useState<Prize[]>([
-    { rank:1, name:'Grand Prize',           description:'', image_url:'', is_consolation:false, is_grand_prize:false },
-    { rank:2, name:'Premium Gift Hamper',   description:'', image_url:'', is_consolation:false, is_grand_prize:false },
-    { rank:3, name:'Branded Merchandise',   description:'', image_url:'', is_consolation:false, is_grand_prize:false },
-    { rank:4, name:'Digital Voucher',       description:'', image_url:'', is_consolation:false, is_grand_prize:false },
-    { rank:5, name:'Better Luck Next Time', description:'', image_url:'', is_consolation:true,  is_grand_prize:false },
-  ])
-  const [rules, setRules]   = useState<Rule[]>([])
-  const [fields, setFields] = useState<FieldMapping[]>([])
-
   const [origin, setOrigin]   = useState('')
 
-  // Get the real domain at runtime — no env var needed
+  const [name, setName]         = useState('')
+  const [slug, setSlug]         = useState('')
+  const [isActive, setIsActive] = useState(true)
+  const [gameType, setGame]     = useState('spin_wheel')
+  const [bgColor, setBg]        = useState('#0a0a1a')
+  const [bgColor2, setBg2]      = useState('#312e81')
+  const [accent, setAccent]     = useState('#f59e0b')
+  const [heading, setHeading]   = useState('')
+  const [logoUrl, setLogo]      = useState('')
+  const [footerText, setFooter] = useState('')
+  const [prizes, setPrizes]     = useState<Prize[]>([
+    { rank: 1, name: 'Grand Prize',           description: '', image_url: '', is_consolation: false, is_grand_prize: false },
+    { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
+    { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
+    { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', is_consolation: false, is_grand_prize: false },
+    { rank: 5, name: 'Better Luck Next Time', description: '', image_url: '', is_consolation: true,  is_grand_prize: false },
+  ])
+  const [rules, setRules]   = useState<Rule[]>(
+    DEFAULT_DESIGNATION_GROUPS.map(g => ({
+      label: g.label,
+      designations: g.designations.join(', '),
+      prize_rank: g.prize_rank,
+      win_probability: g.win_probability,
+    }))
+  )
+  const [fields, setFields] = useState<FieldMapping[]>([])
+
   useEffect(() => { if (typeof window !== 'undefined') setOrigin(window.location.origin) }, [])
 
   const eventUrl = origin && slug ? `${origin}/${slug}` : ''
 
   useEffect(() => {
     fetch('/api/admin/events').then(r => r.json()).then(data => {
-      const ev = (data.events || []).find((e: {id: string}) => e.id === id)
+      const ev = (data.events || []).find((e: { id: string }) => e.id === id)
       if (!ev) { router.push('/admin'); return }
       setName(ev.name); setSlug(ev.slug); setIsActive(ev.is_active)
       setGame(ev.game_type || 'spin_wheel')
@@ -63,7 +77,7 @@ export default function EditEventPage() {
       setAccent(ui.accentColor || '#f59e0b')
       setHeading(ui.heading || ''); setLogo(ui.logoUrl || ''); setFooter(ui.footerText || '')
       if (ev.prizes?.length) setPrizes(ev.prizes.map((p: Prize) => ({ rank: p.rank, name: p.name, description: p.description || '', image_url: p.image_url || '', is_consolation: p.is_consolation, is_grand_prize: p.is_grand_prize })))
-      if (ev.designation_rules?.length) setRules(ev.designation_rules.map((r: {label:string;designations:string[];prize_rank:number;win_probability:number}) => ({ label: r.label || '', designations: (r.designations || []).join(', '), prize_rank: r.prize_rank, win_probability: r.win_probability })))
+      if (ev.designation_rules?.length) setRules(ev.designation_rules.map((r: { label: string; designations: string[]; prize_rank: number; win_probability: number }) => ({ label: r.label || '', designations: (r.designations || []).join(', '), prize_rank: r.prize_rank, win_probability: r.win_probability })))
       if (ev.form_fields?.length) setFields(ev.form_fields)
       setLoading(false)
     })
@@ -78,14 +92,13 @@ export default function EditEventPage() {
         body: JSON.stringify({
           id, name, slug, is_active: isActive, game_type: gameType,
           ui_config: { bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText, bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)` },
-          form_fields: fields,
-          prizes,
-          designation_rules: rules.map(r => ({ label: r.label, designations: r.designations.split(',').map((d:string) => d.trim()).filter(Boolean), prize_rank: r.prize_rank, win_probability: r.win_probability })),
+          form_fields: fields, prizes,
+          designation_rules: rules.map(r => ({ label: r.label, designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean), prize_rank: r.prize_rank, win_probability: r.win_probability })),
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
       router.push('/admin')
-    } catch(e: unknown) { setError(e instanceof Error ? e.message : 'Error saving') }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error saving') }
     finally { setSaving(false) }
   }
 
@@ -97,13 +110,11 @@ export default function EditEventPage() {
     canvas.width = size; canvas.height = size
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const svgData = new XMLSerializer().serializeToString(svg)
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' })
     const url = URL.createObjectURL(svgBlob)
     const img = new Image()
     img.onload = () => {
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, size, size)
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, size, size)
       ctx.drawImage(img, 0, 0, size, size)
       URL.revokeObjectURL(url)
       canvas.toBlob(blob => {
@@ -117,9 +128,11 @@ export default function EditEventPage() {
     img.src = url
   }
 
-  const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '📊 QR Code']
+  const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '🎯 Win Rules', '📊 QR Code']
 
-  if (loading) return <div style={{ minHeight: '100vh', background: '#0d0d1f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(248,250,252,0.4)', fontFamily: 'Inter,sans-serif' }}>Loading…</div>
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#0d0d1f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(248,250,252,0.4)', fontFamily: 'Inter,sans-serif' }}>Loading…</div>
+  )
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d0d1f', color: '#f8fafc', fontFamily: 'Inter,sans-serif' }}>
@@ -130,8 +143,18 @@ export default function EditEventPage() {
           <h1 style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Edit: {name}</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <a href={`/${slug}`} target="_blank" rel="noreferrer" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,250,252,0.6)', textDecoration: 'none', fontSize: '0.8rem' }}>👁 Preview</a>
-          <button onClick={save} disabled={saving} style={{ padding: '0.6rem 1.25rem', fontSize: '0.875rem', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', border: 'none', borderRadius: '0.75rem', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+          {/* Grand Prize Session button */}
+          <button
+            onClick={() => router.push(`/admin/events/${id}/session`)}
+            style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#fcd34d', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+            🎰 Grand Prize Session
+          </button>
+          <a href={`/${slug}`} target="_blank" rel="noreferrer"
+            style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,250,252,0.6)', textDecoration: 'none', fontSize: '0.8rem' }}>
+            👁 Preview
+          </a>
+          <button onClick={save} disabled={saving}
+            style={{ padding: '0.6rem 1.25rem', fontSize: '0.875rem', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', border: 'none', borderRadius: '0.75rem', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
             {saving ? '⏳ Saving…' : '💾 Save'}
           </button>
         </div>
@@ -140,7 +163,6 @@ export default function EditEventPage() {
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '2rem 1.5rem' }}>
         {error && <div style={{ padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', marginBottom: '1.5rem' }}>⚠️ {error}</div>}
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           {tabs.map((t, i) => (
             <button key={i} onClick={() => setTab(i)} style={{ padding: '0.5rem 1rem', borderRadius: '0.65rem', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, background: tab === i ? '#7c3aed' : 'rgba(255,255,255,0.07)', color: tab === i ? '#fff' : 'rgba(248,250,252,0.6)', transition: 'all 0.15s' }}>{t}</button>
@@ -149,11 +171,14 @@ export default function EditEventPage() {
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
 
-          {/* TAB 0: Details */}
           {tab === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
               <div><label style={L}>Event Name</label><input style={F} value={name} onChange={e => setName(e.target.value)} /></div>
-              <div><label style={L}>URL Slug</label><input style={F} value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /><span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.25rem', display: 'block' }}>Event URL: {eventUrl}</span></div>
+              <div>
+                <label style={L}>URL Slug</label>
+                <input style={F} value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
+                <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.25rem', display: 'block' }}>Event URL: {eventUrl}</span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <label style={{ ...L, marginBottom: 0 }}>Active</label>
                 <button type="button" onClick={() => setIsActive(v => !v)} style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', background: isActive ? '#7c3aed' : 'rgba(255,255,255,0.15)', position: 'relative', transition: 'background 0.2s' }}>
@@ -163,15 +188,11 @@ export default function EditEventPage() {
             </div>
           )}
 
-          {/* TAB 1: Form Fields */}
           {tab === 1 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>These are the fields shown in the participant registration form.</p>
-                <button onClick={() => setFields(fs => [...fs, { formLabel: '', fieldKey: 'custom', required: false, fieldType: 'text', options: '' }])}
-                  style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  + Add Field
-                </button>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Fields shown in the participant registration form.</p>
+                <button onClick={() => setFields(fs => [...fs, { formLabel: '', fieldKey: 'custom', required: false, fieldType: 'text', options: '' }])} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Add Field</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
                 {['Label', 'Type', 'Maps To', 'Req', ''].map(h => <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>)}
@@ -180,10 +201,10 @@ export default function EditEventPage() {
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
                   <input style={{ ...F, padding: '0.5rem 0.7rem' }} value={field.formLabel} placeholder="Label" onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, formLabel: e.target.value } : f))} />
                   <select style={{ ...F, padding: '0.5rem', appearance: 'none' }} value={field.fieldType} onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldType: e.target.value } : f))}>
-                    {['text', 'email', 'tel', 'number', 'select'].map(t => <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>)}
+                    {['text','email','tel','number','select'].map(t => <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>)}
                   </select>
                   <select style={{ ...F, padding: '0.5rem 0.4rem', appearance: 'none', fontSize: '0.78rem' }} value={field.fieldKey} onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldKey: e.target.value } : f))}>
-                    {['name', 'email', 'phone_number', 'company', 'designation', 'custom'].map(k => <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>)}
+                    {['name','email','phone_number','company','designation','custom'].map(k => <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>)}
                   </select>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <input type="checkbox" checked={field.required} onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, required: e.target.checked } : f))} style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }} />
@@ -194,7 +215,6 @@ export default function EditEventPage() {
             </div>
           )}
 
-          {/* TAB 2: Design */}
           {tab === 2 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div><label style={L}>Background Start</label><input type="color" value={bgColor} onChange={e => setBg(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
@@ -210,7 +230,6 @@ export default function EditEventPage() {
             </div>
           )}
 
-          {/* TAB 3: Game */}
           {tab === 3 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem' }}>
               {GAMES.map(g => (
@@ -223,7 +242,6 @@ export default function EditEventPage() {
             </div>
           )}
 
-          {/* TAB 4: Prizes */}
           {tab === 4 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {prizes.map((p, i) => (
@@ -236,8 +254,36 @@ export default function EditEventPage() {
             </div>
           )}
 
-          {/* TAB 5: QR Code */}
           {tab === 5 && (
+            <div>
+              <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Set win probability per designation group.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr auto auto', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                {['Group', 'Designations (comma separated)', 'Prize Rank', 'Win %'].map(h => <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>)}
+              </div>
+              {rules.map((r, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr auto auto', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'start' }}>
+                  <input style={{ ...F, padding: '0.5rem 0.7rem' }} value={r.label} placeholder="Group name" onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                  <input style={{ ...F, padding: '0.5rem 0.7rem', fontSize: '0.8rem' }} value={r.designations} placeholder="CEO, CTO, VP…" onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, designations: e.target.value } : x))} />
+                  <input type="number" min={1} max={5} style={{ ...F, padding: '0.5rem', width: 72 }} value={r.prize_rank} onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, prize_rank: Number(e.target.value) } : x))} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input type="number" min={0} max={100} style={{ ...F, padding: '0.5rem', width: 72 }} value={r.win_probability} onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, win_probability: Number(e.target.value) } : x))} />
+                    <span style={{ fontSize: '0.8rem', color: 'rgba(248,250,252,0.4)', whiteSpace: 'nowrap' }}>%</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '0.75rem' }}>
+                <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', fontWeight: 700, color: '#a78bfa' }}>Current Win Ratios</p>
+                {rules.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'rgba(248,250,252,0.6)', marginBottom: '0.25rem' }}>
+                    <span>{r.label || `Group ${i + 1}`}</span>
+                    <span style={{ color: '#a78bfa', fontWeight: 600 }}>{r.win_probability}:{100 - r.win_probability} (win:lose)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab === 6 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', textAlign: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>QR Code for &ldquo;{name}&rdquo;</h3>
               <div style={{ background: '#fff', borderRadius: '1rem', padding: '1.25rem', display: 'inline-flex' }}>
@@ -246,9 +292,6 @@ export default function EditEventPage() {
               <div style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.75rem', width: '100%' }}>
                 <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(248,250,252,0.45)' }}>Scans to:</p>
                 <code style={{ fontSize: '0.85rem', color: '#a5f3fc', wordBreak: 'break-all' }}>{eventUrl}</code>
-              </div>
-              <div style={{ padding: '0.75rem 1rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '0.65rem', fontSize: '0.8rem', color: '#fcd34d' }}>
-                💡 Tip: Download as PNG and print/display it. Participants scan it with their phone camera.
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                 <a href={eventUrl} target="_blank" rel="noreferrer" style={{ padding: '0.65rem 1.25rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.65rem', color: '#a78bfa', textDecoration: 'none', fontSize: '0.875rem' }}>🔗 Open Page</a>
