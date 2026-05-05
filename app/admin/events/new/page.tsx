@@ -46,7 +46,7 @@ export default function NewEventPage() {
   const [saving, setSaving]     = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [error, setError]       = useState('')
-  const [saved, setSaved]       = useState(null)
+  const [saved, setSaved] = useState<{ id: string; slug: string } | null>(null)
   const [origin, setOrigin]     = useState('')
   const [name, setName]         = useState('')
   const [eventSlug, setSlug]    = useState('')
