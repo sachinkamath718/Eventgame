@@ -24,7 +24,7 @@ const DEFAULT_FIELDS = [
   { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'text',  options: '' },
 ]
 
-function slugify(s) {
+function slugify(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
