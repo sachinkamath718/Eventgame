@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
 
@@ -9,28 +10,34 @@ interface Props {
   targetRank: number
   won: boolean
   onDone: () => void
+  // Session mode: wheel spins until admin picks winner via realtime
+  sessionMode?: boolean
+  registrationId?: string
 }
 
 const COLORS = ['#7c3aed','#4338ca','#0f766e','#b45309','#be185d','#1d4ed8','#6d28d9','#047857']
 
-export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [spinning, setSpinning] = useState(false)
-  const [done, setDone] = useState(false)
-  const [rotation, setRotation] = useState(0)
-  const spinRef = useRef(0)
-  const rafRef = useRef<number>(0)
+export default function SpinWheelGame({ prizes, targetRank, won, onDone, sessionMode, registrationId }: Props) {
+  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const [spinning, setSpinning]   = useState(false)
+  const [done, setDone]           = useState(false)
+  const [sessionResult, setSessionResult] = useState<{ won: boolean; prizeName: string } | null>(null)
+  const spinRef     = useRef(0)
+  const rafRef      = useRef<number>(0)
+  const loopRef     = useRef<boolean>(false)  // for infinite spin loop
+  const resolveRef  = useRef<((won: boolean, rank: number) => void) | null>(null)
+  const supabase    = createClient()
 
-  // Filter display prizes — consolation + regular (no grand)
   const wheelPrizes = prizes.filter(p => !p.is_grand_prize).slice(0, 8)
-  const segCount = wheelPrizes.length || 6
-  const segAngle = (2 * Math.PI) / segCount
+  const segCount    = wheelPrizes.length || 6
+  const segAngle    = (2 * Math.PI) / segCount
 
-  // Find which segment index is our target
-  const targetIdx = won
-    ? wheelPrizes.findIndex(p => p.rank === targetRank)
-    : wheelPrizes.findIndex(p => p.is_consolation)
-  const safeIdx = targetIdx >= 0 ? targetIdx : segCount - 1
+  function getTargetIdx(isWon: boolean, rank: number) {
+    const idx = isWon
+      ? wheelPrizes.findIndex(p => p.rank === rank)
+      : wheelPrizes.findIndex(p => p.is_consolation)
+    return idx >= 0 ? idx : segCount - 1
+  }
 
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
@@ -38,11 +45,10 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
     const ctx = canvas.getContext('2d')!
     const cx = canvas.width / 2
     const cy = canvas.height / 2
-    const r = cx - 10
+    const r  = cx - 10
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Outer glow ring
     const grad = ctx.createRadialGradient(cx, cy, r - 8, cx, cy, r + 8)
     grad.addColorStop(0, 'rgba(168,85,247,0.6)')
     grad.addColorStop(1, 'rgba(168,85,247,0)')
@@ -53,8 +59,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
 
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
-      const end = start + segAngle
-      // Segment fill
+      const end   = start + segAngle
       ctx.beginPath()
       ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, start, end)
@@ -65,7 +70,6 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
       ctx.lineWidth = 2
       ctx.stroke()
 
-      // Label
       ctx.save()
       ctx.translate(cx, cy)
       ctx.rotate(start + segAngle / 2)
@@ -73,12 +77,11 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
       ctx.fillStyle = '#fff'
       ctx.font = 'bold 13px Poppins, sans-serif'
       const label = wheelPrizes[i]?.name || `Prize ${i + 1}`
-      const text = label.length > 12 ? label.slice(0, 12) + '…' : label
+      const text  = label.length > 12 ? label.slice(0, 12) + '…' : label
       ctx.fillText(text, r - 14, 5)
       ctx.restore()
     }
 
-    // Centre circle
     ctx.beginPath()
     ctx.arc(cx, cy, 28, 0, 2 * Math.PI)
     ctx.fillStyle = '#0a0a1a'
@@ -95,27 +98,45 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
 
   useEffect(() => { drawWheel(0) }, [wheelPrizes.length])
 
-  function spin() {
-    if (spinning || done) return
-    setSpinning(true)
+  // ── Infinite spin loop (session mode) ──────────────────────────────────────
+  function startInfiniteLoop() {
+    loopRef.current = true
+    let start: number | null = null
+    const speed = 0.003 // radians per ms
 
-    // Calculate target rotation so pointer (top = -π/2) lands on safeIdx
+    function loop(ts: number) {
+      if (!loopRef.current) return
+      if (start === null) start = ts
+      const rot = ((ts - start) * speed) % (2 * Math.PI)
+      spinRef.current = rot
+      drawWheel(rot)
+      rafRef.current = requestAnimationFrame(loop)
+    }
+    rafRef.current = requestAnimationFrame(loop)
+  }
+
+  function stopInfiniteLoop() {
+    loopRef.current = false
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  }
+
+  // ── Final landing spin ─────────────────────────────────────────────────────
+  function spinToTarget(isWon: boolean, rank: number) {
+    const safeIdx    = getTargetIdx(isWon, rank)
     const targetAngle = -(safeIdx * segAngle + segAngle / 2) - Math.PI / 2
-    const fullSpins = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI
-    const finalRot = fullSpins + targetAngle
+    const fullSpins  = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI
+    const finalRot   = fullSpins + targetAngle
 
-    const startTime = performance.now()
-    const duration = 5000
-    const startRot = spinRef.current
+    const startRot   = spinRef.current
+    const startTime  = performance.now()
+    const duration   = 4000
 
     function animate(now: number) {
       const elapsed = now - startTime
-      const t = Math.min(elapsed / duration, 1)
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - t, 3)
+      const t       = Math.min(elapsed / duration, 1)
+      const eased   = 1 - Math.pow(1 - t, 3)
       const current = startRot + finalRot * eased
       spinRef.current = current
-      setRotation(current)
       drawWheel(current)
 
       if (t < 1) {
@@ -128,10 +149,61 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
     rafRef.current = requestAnimationFrame(animate)
   }
 
-  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
+  // ── Session mode: subscribe to realtime result ─────────────────────────────
+  useEffect(() => {
+    if (!sessionMode || !registrationId) return
+
+    // Start spinning immediately
+    setSpinning(true)
+    startInfiniteLoop()
+
+    const channel = supabase
+      .channel(`spin-session:${registrationId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'registrations',
+        filter: `id=eq.${registrationId}`,
+      }, (payload) => {
+        const updated = payload.new as Record<string, unknown>
+        const isWon   = updated.game_result === 'won'
+        const rank    = (updated.prize_rank_won as number) ?? 5
+        const prize   = updated.prize_name as string ?? 'Better Luck Next Time'
+
+        stopInfiniteLoop()
+        setSessionResult({ won: isWon, prizeName: prize })
+        spinToTarget(isWon, rank)
+      })
+      .subscribe()
+
+    return () => {
+      stopInfiniteLoop()
+      supabase.removeChannel(channel)
+    }
+  }, [sessionMode, registrationId])
+
+  // ── Normal mode: manual spin ───────────────────────────────────────────────
+  function spin() {
+    if (spinning || done || sessionMode) return
+    setSpinning(true)
+    spinToTarget(won, targetRank)
+  }
+
+  useEffect(() => () => {
+    loopRef.current = false
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+
+      {sessionMode && !done && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '2rem' }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', animation: 'pulse 1.5s infinite' }} />
+          <span style={{ fontSize: '0.8rem', color: '#4ade80', fontWeight: 600 }}>LIVE — Host is selecting the winner…</span>
+        </div>
+      )}
+
       {/* Pointer */}
       <div style={{ position: 'relative', display: 'inline-block' }}>
         <div style={{
@@ -141,7 +213,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
           borderRight: '10px solid transparent',
           borderTop: '22px solid #f59e0b',
           filter: 'drop-shadow(0 0 8px rgba(245,158,11,0.8))',
-          zIndex: 10
+          zIndex: 10,
         }} />
         <canvas
           ref={canvasRef}
@@ -151,17 +223,30 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone }: Props
         />
       </div>
 
-      {!done ? (
-        <button
-          onClick={spin}
-          disabled={spinning}
-          className="btn-primary"
-          style={{ maxWidth: 200, fontSize: '1.1rem', letterSpacing: '0.05em' }}
-        >
+      {/* Normal mode button */}
+      {!sessionMode && !done && (
+        <button onClick={spin} disabled={spinning} className="btn-primary" style={{ maxWidth: 200, fontSize: '1.1rem', letterSpacing: '0.05em' }}>
           {spinning ? '🌀 Spinning…' : '🎡 SPIN!'}
         </button>
-      ) : (
-        <button onClick={onDone} className="btn-primary" style={{ maxWidth: 200 }}>
+      )}
+
+      {/* Session mode: waiting message */}
+      {sessionMode && !done && (
+        <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.85rem', textAlign: 'center', margin: 0 }}>
+          Your wheel is spinning live! The host will announce the winner shortly.
+        </p>
+      )}
+
+      {/* Done */}
+      {done && (
+        <button onClick={() => {
+          // Pass session result up if in session mode
+          if (sessionMode && sessionResult) {
+            onDone()
+          } else {
+            onDone()
+          }
+        }} className="btn-primary" style={{ maxWidth: 200 }}>
           See Your Prize →
         </button>
       )}
