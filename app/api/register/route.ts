@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    // Extract standard fields using the event's field mapping
     const mappings: Array<{ fieldKey: string; formLabel: string }> = event.form_fields || []
     const getValue = (key: string) => {
       const m = mappings.find(x => x.fieldKey === key)
@@ -36,7 +35,6 @@ export async function POST(req: NextRequest) {
 
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
-    // Duplicate check
     const { data: existing } = await supabase
       .from('registrations')
       .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
@@ -57,7 +55,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const prize = assignPrize(designation, event.designation_rules || [], event.prizes || [])
+    // FIX: use { prize, won } — won is the actual dice roll result
+    const { prize, won } = assignPrize(designation, event.designation_rules || [], event.prizes || [])
 
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
@@ -70,21 +69,20 @@ export async function POST(req: NextRequest) {
         prize_name:        prize?.name         ?? null,
         prize_description: prize?.description  ?? null,
         prize_image_url:   prize?.image_url    ?? null,
-        game_result:       prize && !prize.is_consolation ? 'won' : 'lost',
+        game_result:       won ? 'won' : 'lost',
       })
       .select()
       .single()
 
     if (regErr) return NextResponse.json({ error: regErr.message }, { status: 500 })
 
-    // FIX: return full prize data so the game can render correctly
     return NextResponse.json({
       registrationId:   reg.id,
       prizeName:        reg.prize_name        ?? 'Thanks for playing!',
       prizeRank:        reg.prize_rank_won    ?? 0,
       prizeImageUrl:    reg.prize_image_url   ?? undefined,
       prizeDescription: reg.prize_description ?? undefined,
-      won:              reg.game_result === 'won',
+      won:              won,
       name:             reg.name,
     })
 
