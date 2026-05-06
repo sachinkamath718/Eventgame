@@ -55,8 +55,26 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // FIX: use { prize, won } — won is the actual dice roll result
-    const { prize, won } = assignPrize(designation, event.designation_rules || [], event.prizes || [])
+    // Check if a grand prize session is active — only then allow rank 1 / grand prize
+    const { data: activeSession } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('event_id', event_id)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle()
+
+    const sessionActive = !!activeSession
+    const allPrizes = event.prizes || []
+
+    // When no session, exclude grand prize (rank 1 marked is_grand_prize or rank === 1)
+    const eligiblePrizes = sessionActive
+      ? allPrizes
+      : allPrizes.filter((p: { is_grand_prize: boolean; rank: number }) =>
+          !p.is_grand_prize && p.rank !== 1
+        )
+
+    const { prize, won } = assignPrize(designation, event.designation_rules || [], eligiblePrizes)
 
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
