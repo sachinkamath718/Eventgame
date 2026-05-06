@@ -13,8 +13,7 @@ interface Prize {
 
 interface RegResult {
   registrationId: string; prizeName: string; prizeRank: number
-  prizeImageUrl?: string; prizeDescription?: string; won: boolean
-  name?: string
+  prizeImageUrl?: string; prizeDescription?: string; won: boolean; name?: string
 }
 
 interface LuckyEvent {
@@ -29,136 +28,144 @@ interface LuckyEvent {
 type Stage = 'form' | 'game' | 'result'
 
 export default function EventClient({ event }: { event: LuckyEvent }) {
-  const [stage, setStage]               = useState<Stage>('form')
-  const [regResult, setRegResult]       = useState<RegResult | null>(null)
-  const [participantName, setParticipantName] = useState('')
-  const [sessionActive, setSessionActive] = useState(false)
+  const [stage, setStage]             = useState<Stage>('form')
+  const [regResult, setRegResult]     = useState<RegResult | null>(null)
+  const [participantName, setName]    = useState('')
+  const [sessionActive, setSession]   = useState(false)
 
   const ui = event.ui_config || {}
 
-  // Check if a grand prize session is active for this event
   useEffect(() => {
     async function checkSession() {
       try {
         const res = await fetch(`/api/session?eventId=${event.id}`)
         const data = await res.json()
-        setSessionActive(!!(data.session?.is_active))
+        setSession(!!(data.session?.is_active))
       } catch { /* ignore */ }
     }
     checkSession()
-    // Re-check every 5s in case admin starts session while participant is on form
-    const interval = setInterval(checkSession, 5000)
-    return () => clearInterval(interval)
+    const t = setInterval(checkSession, 5000)
+    return () => clearInterval(t)
   }, [event.id])
 
-  // Listen for registration-complete custom event from RegisterForm
   useEffect(() => {
     function handleReg(e: CustomEvent<RegResult>) {
       setRegResult(e.detail)
-      setParticipantName(e.detail.name || '')
+      setName(e.detail.name || '')
       setStage('game')
     }
     window.addEventListener('registration-complete', handleReg as EventListener)
     return () => window.removeEventListener('registration-complete', handleReg as EventListener)
   }, [])
 
-  // When session result comes in via SpinWheel, update regResult so ResultScreen shows correctly
-  function handleGameDone() {
-    setStage('result')
-  }
-
   const prizes = event.prizes || []
-  const stages: Stage[] = ['form', 'game', 'result']
-  const stageLabels = ['Register', 'Play', 'Result']
+  const bg     = ui.bgColor && ui.bgColor2
+    ? `linear-gradient(145deg,${ui.bgColor} 0%,${ui.bgColor2} 100%)`
+    : 'linear-gradient(145deg,#0a0a1a 0%,#1e1b4b 100%)'
+  const accent = ui.accentColor || '#f59e0b'
+
+  const stages: Stage[]  = ['form', 'game', 'result']
+  const stageIdx         = stages.indexOf(stage)
 
   return (
-    <main
-      className="mesh-bg"
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        padding: '2rem 1rem',
-        fontFamily: ui.fontFamily || 'var(--font-body)',
-        color: ui.textColor || '#f8fafc',
-      }}
-    >
+    <main style={{
+      minHeight: '100vh',
+      background: bg,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center',
+      padding: '2rem 1rem 4rem',
+      fontFamily: 'Inter, sans-serif',
+      color: '#f8fafc',
+    }}>
+
       {/* Logo */}
       {ui.logoUrl && (
-        <img src={ui.logoUrl} alt="Logo" className="animate-fade-in"
-          style={{ height: 56, objectFit: 'contain', marginBottom: '1.5rem' }} />
+        <img src={ui.logoUrl} alt="logo"
+          style={{ height: 48, objectFit: 'contain', marginBottom: '1.5rem' }} />
       )}
 
-      {/* Header */}
-      <div className="animate-slide-up" style={{ textAlign: 'center', marginBottom: '2rem', maxWidth: 480 }}>
+      {/* Heading */}
+      <div style={{ textAlign: 'center', marginBottom: '2rem', maxWidth: 480 }}>
         <h1 style={{
-          fontFamily: 'var(--font-heading)', fontWeight: 900,
-          fontSize: 'clamp(1.75rem, 5vw, 2.5rem)', marginBottom: '0.5rem',
-          color: ui.accentColor || '#f59e0b',
-          textShadow: '0 0 30px rgba(245,158,11,0.4)',
+          fontWeight: 900,
+          fontSize: 'clamp(1.6rem,5vw,2.4rem)',
+          margin: '0 0 0.5rem',
+          color: accent,
+          textShadow: `0 0 32px ${accent}55`,
+          letterSpacing: '-0.02em',
         }}>
-          {ui.heading || `🎉 ${event.name}`}
+          {ui.heading || event.name}
         </h1>
-        <p style={{ fontSize: '1rem', color: 'rgba(248,250,252,0.65)', lineHeight: 1.5 }}>
-          {ui.subheading || 'Fill the form below to spin & win amazing prizes!'}
+        <p style={{ fontSize: '0.95rem', color: 'rgba(248,250,252,0.5)', margin: 0 }}>
+          {ui.subheading || 'Register below and spin to win'}
         </p>
       </div>
 
-      {/* Stage progress */}
-      <div className="animate-slide-up-delay-1" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
-        {stages.map((s, i) => (
-          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {/* Stage indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '2rem' }}>
+        {['Register', 'Play', 'Result'].map((label, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
             <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.7rem', fontWeight: 700,
-              background: stage === s
-                ? (ui.accentColor || '#f59e0b')
-                : stages.indexOf(stage) > i
-                ? 'rgba(34,197,94,0.4)'
-                : 'rgba(255,255,255,0.1)',
-              color: stage === s ? '#0a0a1a' : stages.indexOf(stage) > i ? '#4ade80' : 'rgba(255,255,255,0.4)',
-              border: stage === s ? `2px solid ${ui.accentColor || '#f59e0b'}` : '2px solid transparent',
-              transition: 'all 0.3s ease',
+              display: 'flex', alignItems: 'center', gap: '0.375rem',
             }}>
-              {stages.indexOf(stage) > i ? '✓' : i + 1}
-            </div>
-            <span style={{
-              fontSize: '0.75rem',
-              color: stage === s ? (ui.accentColor || '#f59e0b') : 'rgba(255,255,255,0.35)',
-              fontWeight: stage === s ? 600 : 400,
-              display: 'none',
-            }}>{stageLabels[i]}</span>
-            {i < stages.length - 1 && (
               <div style={{
-                width: 40, height: 1,
-                background: stages.indexOf(stage) > i ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.1)',
-                transition: 'background 0.5s ease',
-              }} />
+                width: 24, height: 24, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.65rem', fontWeight: 700,
+                background: stageIdx === i
+                  ? accent
+                  : stageIdx > i ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
+                color: stageIdx === i ? '#0a0a1a' : stageIdx > i ? '#4ade80' : 'rgba(255,255,255,0.35)',
+                border: stageIdx === i ? `2px solid ${accent}` : '2px solid transparent',
+                transition: 'all 0.3s',
+              }}>
+                {stageIdx > i ? '✓' : i + 1}
+              </div>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: stageIdx === i ? 600 : 400,
+                color: stageIdx === i ? accent : 'rgba(255,255,255,0.3)',
+              }}>{label}</span>
+            </div>
+            {i < 2 && (
+              <div style={{ width: 32, height: 1, background: stageIdx > i ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)' }} />
             )}
           </div>
         ))}
       </div>
 
-      {/* ── Stage: Form ── */}
+      {/* Form */}
       {stage === 'form' && (
-        <div className="glass-card animate-slide-up-delay-2" style={{ width: '100%', maxWidth: 460, padding: '2rem' }}>
+        <div style={{
+          width: '100%', maxWidth: 440,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: '1.5rem', padding: '2rem',
+          backdropFilter: 'blur(12px)',
+        }}>
           <RegisterFormWrapper event={event} />
         </div>
       )}
 
-      {/* ── Stage: Game ── */}
+      {/* Game */}
       {stage === 'game' && regResult && (
-        <div className="glass-card animate-scale-in" style={{ width: '100%', maxWidth: 480, padding: '2rem', textAlign: 'center' }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.4rem', marginBottom: '0.5rem' }}>
-            🎮 Time to Play!
+        <div style={{
+          width: '100%', maxWidth: 480,
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '1.5rem', padding: '2rem',
+          textAlign: 'center',
+        }}>
+          <h2 style={{ fontWeight: 700, fontSize: '1.25rem', margin: '0 0 0.375rem' }}>
+            {sessionActive ? 'Live Draw' : 'Your Turn'}
           </h2>
-          <p style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-            {event.game_type === 'spin_wheel' && (sessionActive ? 'The wheel will spin until the host picks the winner!' : 'Spin the wheel and see what you win!')}
-            {event.game_type === 'number_match' && 'Reveal the cards — match all 3 to win!'}
-            {event.game_type === 'anime_match' && 'Match all the pairs to claim your prize!'}
+          <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.82rem', margin: '0 0 1.5rem' }}>
+            {event.game_type === 'spin_wheel'
+              ? sessionActive
+                ? 'The wheel spins until the host picks a winner'
+                : 'Spin the wheel to reveal your prize'
+              : event.game_type === 'number_match'
+              ? 'Pull the lever — match all 3 to win'
+              : 'Match all pairs to claim your prize'}
           </p>
 
           {event.game_type === 'spin_wheel' && (
@@ -166,38 +173,36 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
               prizes={prizes}
               targetRank={regResult.prizeRank}
               won={regResult.won}
-              onDone={handleGameDone}
+              onDone={() => setStage('result')}
               sessionMode={sessionActive}
               registrationId={regResult.registrationId}
             />
           )}
           {event.game_type === 'number_match' && (
-            <NumberMatchGame won={regResult.won} onDone={handleGameDone} />
+            <NumberMatchGame won={regResult.won} onDone={() => setStage('result')} />
           )}
           {event.game_type === 'anime_match' && (
-            <AnimeMatchGame won={regResult.won} onDone={handleGameDone} />
+            <AnimeMatchGame won={regResult.won} onDone={() => setStage('result')} />
           )}
         </div>
       )}
 
-      {/* ── Stage: Result ── */}
+      {/* Result */}
       {stage === 'result' && regResult && (
-        <div className="animate-fade-in" style={{ width: '100%', maxWidth: 480 }}>
-          <ResultScreen
-            won={regResult.won}
-            prizeName={regResult.prizeName}
-            prizeDescription={regResult.prizeDescription}
-            prizeImageUrl={regResult.prizeImageUrl}
-            linkedinCompanyUrl={event.linkedin_company_url}
-            linkedinShareText={event.linkedin_share_text}
-            participantName={participantName}
-            registrationId={regResult.registrationId}
-          />
-        </div>
+        <ResultScreen
+          won={regResult.won}
+          prizeName={regResult.prizeName}
+          prizeDescription={regResult.prizeDescription}
+          prizeImageUrl={regResult.prizeImageUrl}
+          linkedinCompanyUrl={event.linkedin_company_url}
+          linkedinShareText={event.linkedin_share_text}
+          participantName={participantName}
+          registrationId={regResult.registrationId}
+        />
       )}
 
       {ui.footerText && (
-        <p style={{ marginTop: '3rem', color: 'rgba(248,250,252,0.25)', fontSize: '0.75rem', textAlign: 'center' }}>
+        <p style={{ marginTop: '3rem', color: 'rgba(248,250,252,0.2)', fontSize: '0.72rem', textAlign: 'center' }}>
           {ui.footerText}
         </p>
       )}
@@ -210,6 +215,10 @@ function RegisterFormWrapper({ event }: { event: LuckyEvent }) {
   useEffect(() => {
     import('@/components/public/RegisterForm').then(m => setForm(() => m.default))
   }, [])
-  if (!Form) return <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(248,250,252,0.4)' }}>Loading…</div>
+  if (!Form) return (
+    <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(248,250,252,0.3)', fontSize: '0.875rem' }}>
+      Loading…
+    </div>
+  )
   return <Form event={event} />
 }
