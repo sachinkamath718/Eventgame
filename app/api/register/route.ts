@@ -21,8 +21,18 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    // ── Map form_data keys ────────────────────────────────────────────────────
-    const getValue = (key: string): string => (form_data[key] || '').toString().trim()
+    // ── Read values using the event's form_fields config ─────────────────────
+    // Only consider fields that are enabled (or have no enabled flag = legacy)
+    const configFields: Array<{
+      fieldKey: string; fieldType: string; required: boolean; enabled?: boolean
+    }> = (event.form_fields || []).filter(
+      (f: { enabled?: boolean }) => f.enabled !== false
+    )
+
+    const getValue = (key: string): string =>
+      (form_data[key] ?? '').toString().trim()
+
+    // Core fields — needed for DB columns + prize logic
     const name        = getValue('name')         || 'Unknown'
     const email       = getValue('email').toLowerCase().trim()
     const designation = getValue('designation')  || 'Unknown'
@@ -30,6 +40,16 @@ export async function POST(req: NextRequest) {
     const company     = getValue('company')      || ''
 
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+
+    // ── Validate required fields from config ──────────────────────────────────
+    for (const field of configFields) {
+      if (field.required && !getValue(field.fieldKey)) {
+        return NextResponse.json(
+          { error: `${field.fieldKey} is required` },
+          { status: 400 }
+        )
+      }
+    }
 
     // ── Duplicate check ───────────────────────────────────────────────────────
     const { data: existing } = await supabase
@@ -64,12 +84,11 @@ export async function POST(req: NextRequest) {
     const sessionActive = !!activeSession
     const allPrizes     = event.prizes || []
 
-    // Exclude grand prize when no live session
     const eligiblePrizes = sessionActive
       ? allPrizes
       : allPrizes.filter((p: { is_grand_prize: boolean }) => !p.is_grand_prize)
 
-    // ── Quantity: count how many times each prize has already been won ────────
+    // ── Count claimed prizes ──────────────────────────────────────────────────
     const prizeIds = eligiblePrizes
       .filter((p: { is_consolation?: boolean; quantity?: number }) =>
         !p.is_consolation && p.quantity != null
@@ -93,7 +112,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Attach claimed count so assignPrize can check stock
     const prizesWithStock = eligiblePrizes.map(
       (p: { id: string; quantity?: number }) => ({
         ...p,
@@ -109,6 +127,8 @@ export async function POST(req: NextRequest) {
     )
 
     // ── Save registration ─────────────────────────────────────────────────────
+    // form_data JSONB stores ALL submitted values (including custom fields)
+    // so no past data is ever lost even if fields are later disabled
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
       .insert({
@@ -118,7 +138,7 @@ export async function POST(req: NextRequest) {
         designation,
         phone_number: phone,
         company,
-        form_data,
+        form_data,                              // full submission always saved
         prize_rank_won:    prize?.rank        ?? null,
         prize_id:          prize?.id          ?? null,
         prize_name:        prize?.name        ?? null,
