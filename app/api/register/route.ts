@@ -22,12 +22,13 @@ export async function POST(req: NextRequest) {
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
     // ── Map form_data keys ────────────────────────────────────────────────────
-    const mappings: Array<{ fieldKey: string; formLabel: string }> = event.form_fields || []
-    const getValue = (key: string) => {
-      const m = mappings.find(x => x.fieldKey === key)
-      return m ? (form_data[m.formLabel] || form_data[key] || '') : (form_data[key] || '')
-    }
-
+const get = (key: string): string => (form_data[key] || '').toString().trim()
+const name        = get('name')        || 'Unknown'
+const email       = get('email').toLowerCase()
+const designation = get('designation') || 'Unknown'
+const phone       = get('phone_number')
+const company     = get('company')
+  }
     const name        = getValue('name')         || 'Unknown'
     const email       = (getValue('email') || '').toLowerCase().trim()
     const designation = getValue('designation')  || 'Unknown'
