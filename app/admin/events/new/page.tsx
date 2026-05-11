@@ -10,12 +10,19 @@ const GAMES = [
   { id: 'anime_match',  label: '🐉 Anime Match',  desc: 'Memory card pairs' },
 ]
 
+// ↓ quantity added to type
+type Prize = { rank: number; name: string; description: string; image_url: string; quantity: number; is_consolation: boolean; is_grand_prize: boolean }
+type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string }
+type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
+type Saved = { id: string; slug: string }
+
+// ↓ quantity defaults added
 const DEFAULT_PRIZES: Prize[] = [
-  { rank: 1, name: 'Grand Prize',           description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-  { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-  { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-  { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-  { rank: 5, name: 'Better Luck Next Time', description: '', image_url: '', is_consolation: true,  is_grand_prize: false },
+  { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: false },
+  { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', quantity: 3,  is_consolation: false, is_grand_prize: false },
+  { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', quantity: 5,  is_consolation: false, is_grand_prize: false },
+  { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', quantity: 10, is_consolation: false, is_grand_prize: false },
+  { rank: 5, name: 'Better Luck Next Time', description: '', image_url: '', quantity: 0,  is_consolation: true,  is_grand_prize: false },
 ]
 
 const DEFAULT_FIELDS: Field[] = [
@@ -25,11 +32,6 @@ const DEFAULT_FIELDS: Field[] = [
   { formLabel: 'Company',      fieldKey: 'company',      required: false, fieldType: 'text',  options: '' },
   { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'text',  options: '' },
 ]
-
-type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string }
-type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
-type Prize = { rank: number; name: string; description: string; image_url: string; is_consolation: boolean; is_grand_prize: boolean }
-type Saved = { id: string; slug: string }
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -93,7 +95,7 @@ export default function NewEventPage() {
           name, slug: finalSlug, game_type: 'spin_wheel',
           form_fields: DEFAULT_FIELDS,
           ui_config: { bgColor: '#0a0a1a', bgColor2: '#312e81', accentColor: '#f59e0b' },
-          prizes: DEFAULT_PRIZES,
+          prizes: DEFAULT_PRIZES, // ↑ quantity included via DEFAULT_PRIZES
           designation_rules: DEFAULT_DESIGNATION_GROUPS.map(g => ({
             label: g.label, designations: g.designations,
             prize_rank: g.prize_rank, win_probability: g.win_probability,
@@ -120,7 +122,7 @@ export default function NewEventPage() {
       bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText,
       bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)`,
     },
-    prizes,
+    prizes, // ↑ quantity is in Prize so it's included automatically
     designation_rules: rules.map(r => ({
       label: r.label,
       designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
@@ -337,16 +339,49 @@ export default function NewEventPage() {
             </div>
           )}
 
-          {/* TAB 3: Prizes */}
+          {/* TAB 3: Prizes — quantity column added */}
           {tab === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {/* column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', paddingLeft: '0.75rem' }}>
+                {['Rank', 'Prize Name', 'Image URL', 'Qty'].map(h => (
+                  <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
+                ))}
+              </div>
               {prizes.map((p, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>{p.is_consolation ? 'Consolation' : `Rank ${p.rank}`}</span>
-                  <input style={{ ...F, padding: '0.5rem 0.75rem' }} value={p.name} placeholder="Prize name" onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-                  <input style={{ ...F, padding: '0.5rem 0.75rem' }} value={p.image_url} placeholder="Image URL (optional)" onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, image_url: e.target.value } : x))} />
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {p.is_consolation ? 'Consolation' : `Rank ${p.rank}`}
+                  </span>
+                  <input
+                    style={{ ...F, padding: '0.5rem 0.75rem' }}
+                    value={p.name}
+                    placeholder="Prize name"
+                    onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                  />
+                  <input
+                    style={{ ...F, padding: '0.5rem 0.75rem' }}
+                    value={p.image_url}
+                    placeholder="Image URL (optional)"
+                    onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, image_url: e.target.value } : x))}
+                  />
+                  {/* ↓ quantity input — ∞ symbol for consolation prizes */}
+                  {p.is_consolation ? (
+                    <span style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '1.1rem' }}>∞</span>
+                  ) : (
+                    <input
+                      type="number"
+                      min={0}
+                      style={{ ...F, padding: '0.5rem', textAlign: 'center' }}
+                      value={p.quantity}
+                      onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, quantity: Math.max(0, Number(e.target.value)) } : x))}
+                    />
+                  )}
                 </div>
               ))}
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)' }}>
+                Qty = total available units of each prize. Consolation prizes are unlimited (∞).
+              </p>
             </div>
           )}
 
