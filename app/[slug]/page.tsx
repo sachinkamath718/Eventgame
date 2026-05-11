@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from 'react'
 import EventClient from '@/components/public/EventClient'
 
-interface LuckyEvent {
+interface LuckyEvent {  
   id: string
   name: string
   slug: string
