@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
+    // ── Map form_data keys ────────────────────────────────────────────────────
     const mappings: Array<{ fieldKey: string; formLabel: string }> = event.form_fields || []
     const getValue = (key: string) => {
       const m = mappings.find(x => x.fieldKey === key)
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
 
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
+    // ── Duplicate check ───────────────────────────────────────────────────────
     const { data: existing } = await supabase
       .from('registrations')
       .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Check if a grand prize session is active — only then allow rank 1 / grand prize
+    // ── Session check ─────────────────────────────────────────────────────────
     const { data: activeSession } = await supabase
       .from('sessions')
       .select('id')
@@ -65,28 +67,69 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     const sessionActive = !!activeSession
-    const allPrizes = event.prizes || []
+    const allPrizes     = event.prizes || []
 
-    // When no session, exclude grand prize (rank 1 marked is_grand_prize or rank === 1)
+    // Exclude grand prize when no live session
     const eligiblePrizes = sessionActive
       ? allPrizes
-      : allPrizes.filter((p: { is_grand_prize: boolean; rank: number }) =>
-          !p.is_grand_prize && p.rank !== 1
-        )
+      : allPrizes.filter((p: { is_grand_prize: boolean }) => !p.is_grand_prize)
 
-    const { prize, won } = assignPrize(designation, event.designation_rules || [], eligiblePrizes)
+    // ── Quantity: count how many times each prize has already been won ────────
+    // This gives us real-time stock levels without a separate counter column.
+    const prizeIds = eligiblePrizes
+      .filter((p: { is_consolation?: boolean; quantity?: number }) =>
+        !p.is_consolation && p.quantity != null
+      )
+      .map((p: { id: string }) => p.id)
 
+    let claimedMap: Record<string, number> = {}
+
+    if (prizeIds.length > 0) {
+      const { data: claimedRows } = await supabase
+        .from('registrations')
+        .select('prize_id')
+        .eq('event_id', event_id)
+        .eq('game_result', 'won')
+        .in('prize_id', prizeIds)
+
+      for (const row of claimedRows ?? []) {
+        if (row.prize_id) {
+          claimedMap[row.prize_id] = (claimedMap[row.prize_id] ?? 0) + 1
+        }
+      }
+    }
+
+    // Attach claimed count so assignPrize can check stock
+    const prizesWithStock = eligiblePrizes.map(
+      (p: { id: string; quantity?: number }) => ({
+        ...p,
+        claimed: claimedMap[p.id] ?? 0,
+      })
+    )
+
+    // ── Assign prize ──────────────────────────────────────────────────────────
+    const { prize, won } = assignPrize(
+      designation,
+      event.designation_rules || [],
+      prizesWithStock,
+    )
+
+    // ── Save registration ─────────────────────────────────────────────────────
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
       .insert({
-        event_id, name, email, designation,
-        phone_number: phone, company,
+        event_id,
+        name,
+        email,
+        designation,
+        phone_number: phone,
+        company,
         form_data,
-        prize_rank_won:    prize?.rank         ?? null,
-        prize_id:          prize?.id           ?? null,
-        prize_name:        prize?.name         ?? null,
-        prize_description: prize?.description  ?? null,
-        prize_image_url:   prize?.image_url    ?? null,
+        prize_rank_won:    prize?.rank        ?? null,
+        prize_id:          prize?.id          ?? null,
+        prize_name:        prize?.name        ?? null,
+        prize_description: prize?.description ?? null,
+        prize_image_url:   prize?.image_url   ?? null,
         game_result:       won ? 'won' : 'lost',
       })
       .select()
@@ -100,7 +143,7 @@ export async function POST(req: NextRequest) {
       prizeRank:        reg.prize_rank_won    ?? 0,
       prizeImageUrl:    reg.prize_image_url   ?? undefined,
       prizeDescription: reg.prize_description ?? undefined,
-      won:              won,
+      won,
       name:             reg.name,
     })
 
