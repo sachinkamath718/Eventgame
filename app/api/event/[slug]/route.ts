@@ -6,8 +6,6 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
-  // Use the service client (same as admin) so RLS never blocks the join.
-  // We manually enforce is_active so the public can't read inactive events.
   const supabase = createServiceClient()
 
   const { data: event, error } = await supabase
@@ -19,8 +17,6 @@ export async function GET(
       game_type,
       form_fields,
       ui_config,
-      linkedin_company_url,
-      linkedin_share_text,
       prizes (
         id,
         rank,
@@ -41,8 +37,8 @@ export async function GET(
     .single()
 
   if (error || !event) {
-    console.error('[event route] error:', error?.message, '| slug:', slug)
-    return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+    console.error('[event route] supabase error:', error?.message, '| code:', error?.code, '| slug:', slug)
+    return NextResponse.json({ error: 'Event not found', detail: error?.message }, { status: 404 })
   }
 
   // Sort prizes by rank so wheel segments are always in consistent order
