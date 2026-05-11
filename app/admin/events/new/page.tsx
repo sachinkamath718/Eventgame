@@ -188,10 +188,8 @@ export default function NewEventPage() {
     img.src = url
   }
 
-const addField = (): void => setFields(fs => [
-  ...fs,
-  { formLabel: '',fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '' }
-])
+const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '' }])
+
   const removeField = (i: number): void => setFields(fs => fs.filter((_, j) => j !== i))
   const updateField = (i: number, patch: Partial<Field>): void => setFields(fs => fs.map((f, j) => j === i ? { ...f, ...patch } : f))
 
