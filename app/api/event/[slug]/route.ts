@@ -18,13 +18,42 @@ export async function GET(
 
   const { data: event, error } = await supabase
     .from('events')
-    .select('id, name, slug, game_type, form_fields, ui_config')
+    .select(`
+      id,
+      name,
+      slug,
+      game_type,
+      form_fields,
+      ui_config,
+      linkedin_company_url,
+      linkedin_share_text,
+      prizes (
+        id,
+        rank,
+        name,
+        description,
+        image_url,
+        is_consolation,
+        is_grand_prize
+      ),
+      designation_rules (
+        designations,
+        prize_rank,
+        win_probability
+      )
+    `)
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
   if (error || !event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  }
+
+  // Supabase returns related rows unordered — sort prizes by rank so the
+  // wheel segments always appear in a consistent order
+  if (Array.isArray(event.prizes)) {
+    event.prizes.sort((a: { rank: number }, b: { rank: number }) => a.rank - b.rank)
   }
 
   return NextResponse.json({ event })
