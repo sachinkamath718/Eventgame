@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Public (anon) client — uses RLS, only returns active events
 function createPublicClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,33 +24,21 @@ export async function GET(
       game_type,
       form_fields,
       ui_config,
+      prizes,
+      designation_rules,
       linkedin_company_url,
-      linkedin_share_text,
-      prizes (
-        id,
-        rank,
-        name,
-        description,
-        image_url,
-        is_consolation,
-        is_grand_prize
-      ),
-      designation_rules (
-        designations,
-        prize_rank,
-        win_probability
-      )
+      linkedin_share_text
     `)
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
   if (error || !event) {
+    console.error('[event route] error:', error?.message, '| slug:', slug)
     return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   }
 
-  // Supabase returns related rows unordered — sort prizes by rank so the
-  // wheel segments always appear in a consistent order
+  // Sort prizes by rank so wheel segments are always in consistent order
   if (Array.isArray(event.prizes)) {
     event.prizes.sort((a: { rank: number }, b: { rank: number }) => a.rank - b.rank)
   }
