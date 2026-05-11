@@ -22,15 +22,9 @@ export async function POST(req: NextRequest) {
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
     // ── Map form_data keys ────────────────────────────────────────────────────
-const get = (key: string): string => (form_data[key] || '').toString().trim()
-const name        = get('name')        || 'Unknown'
-const email       = get('email').toLowerCase()
-const designation = get('designation') || 'Unknown'
-const phone       = get('phone_number')
-const company     = get('company')
-  }
+    const getValue = (key: string): string => (form_data[key] || '').toString().trim()
     const name        = getValue('name')         || 'Unknown'
-    const email       = (getValue('email') || '').toLowerCase().trim()
+    const email       = getValue('email').toLowerCase().trim()
     const designation = getValue('designation')  || 'Unknown'
     const phone       = getValue('phone_number') || ''
     const company     = getValue('company')      || ''
@@ -76,7 +70,6 @@ const company     = get('company')
       : allPrizes.filter((p: { is_grand_prize: boolean }) => !p.is_grand_prize)
 
     // ── Quantity: count how many times each prize has already been won ────────
-    // This gives us real-time stock levels without a separate counter column.
     const prizeIds = eligiblePrizes
       .filter((p: { is_consolation?: boolean; quantity?: number }) =>
         !p.is_consolation && p.quantity != null
