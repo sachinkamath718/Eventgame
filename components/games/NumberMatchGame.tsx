@@ -14,26 +14,55 @@ const LOSE_COMBOS = [
   ['🍒', '🍋', '🍊'],
   ['🔔', '🍇', '🍋'],
   ['💎', '🔔', '🍒'],
-  ['🎯', '🍊', '⭐'],
+  ['🎯', '🍊', '🍒'],
   ['🍇', '💎', '🔔'],
 ]
 
-const VISIBLE  = 3
-const SYMBOL_H = 80
+const VISIBLE      = 3
+const SYMBOL_H     = 80
+const SPIN_SYMBOLS = 20          // random symbols before the target
 const REEL_DURATIONS = [2200, 3000, 3800]
 
 export default function NumberMatchGame({ won, onDone }: Props) {
+  // Pick the outcome combo once on mount
   const [slots] = useState<string[]>(() =>
     won ? WIN_COMBO : LOSE_COMBOS[Math.floor(Math.random() * LOSE_COMBOS.length)]
   )
 
+  // Build each reel strip: random padding + target symbol in the middle row
+  // The middle row is index 1 (since VISIBLE=3, middle=1), so we need the
+  // target at position SPIN_SYMBOLS + 1 in the strip, and we scroll so that
+  // index sits in the centre viewport slot.
+  //
+  // targetOffset = (SPIN_SYMBOLS + 1 - 1) * SYMBOL_H = SPIN_SYMBOLS * SYMBOL_H
+  // (subtract 1 because the viewport shows items starting from offset 0 = item 0 at top,
+  //  item 1 at centre, item 2 at bottom — so centre item index = offset / SYMBOL_H + 1)
+  //
+  // Simpler: place target at index SPIN_SYMBOLS.
+  // Visible window shows items at offsets [offset, offset+SYMBOL_H, offset+2*SYMBOL_H].
+  // Middle item index = offset/SYMBOL_H + 1.
+  // We want middle item = SPIN_SYMBOLS, so offset/SYMBOL_H + 1 = SPIN_SYMBOLS
+  // → offset = (SPIN_SYMBOLS - 1) * SYMBOL_H
+  const TARGET_IDX    = SPIN_SYMBOLS
+  const TARGET_OFFSET = (TARGET_IDX - 1) * SYMBOL_H   // scroll so target is in the middle
+
   const [reelSymbols] = useState<string[][]>(() =>
     [0, 1, 2].map(i => {
       const strip: string[] = []
-      for (let j = 0; j < 24; j++) {
+      // Random symbols before target
+      for (let j = 0; j < TARGET_IDX; j++) {
+        // Make sure random symbols don't accidentally match on a losing reel
+        let sym: string
+        do { sym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] }
+        while (!won && sym === slots[i] && j === TARGET_IDX - 1)
+        strip.push(sym)
+      }
+      // Target symbol in the middle
+      strip.push(slots[i])
+      // A few symbols after so the strip doesn't look empty
+      for (let j = 0; j < 4; j++) {
         strip.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)])
       }
-      strip.push(slots[i])
       return strip
     })
   )
@@ -42,32 +71,28 @@ export default function NumberMatchGame({ won, onDone }: Props) {
   const [spinning, setSpinning] = useState<boolean[]>([false, false, false])
   const [stopped, setStopped]   = useState<boolean[]>([false, false, false])
   const [started, setStarted]   = useState(false)
-  const [done, setDone]         = useState(false)
   const rafRefs                 = useRef<(number | null)[]>([null, null, null])
   const startTimes              = useRef<(number | null)[]>([null, null, null])
 
   function spinReel(reelIdx: number) {
-    const strip        = reelSymbols[reelIdx]
-    const totalH       = strip.length * SYMBOL_H
-    const targetOffset = (strip.length - 2) * SYMBOL_H
-    const duration     = REEL_DURATIONS[reelIdx]
+    const duration = REEL_DURATIONS[reelIdx]
     startTimes.current[reelIdx] = performance.now()
 
     function animate(now: number) {
-      const elapsed  = now - (startTimes.current[reelIdx] ?? now)
-      const t        = Math.min(elapsed / duration, 1)
+      const elapsed = now - (startTimes.current[reelIdx] ?? now)
+      const t       = Math.min(elapsed / duration, 1)
 
       let offset: number
       if (t < 0.7) {
-        offset = (elapsed * 0.9) % totalH
+        // Fast spin phase — scroll freely past the target
+        const fastTop = TARGET_OFFSET * 0.6   // intermediate position before target
+        offset = fastTop * (t / 0.7)
       } else {
-        const slowDuration = duration * 0.3
-        const slowStart    = startTimes.current[reelIdx]! + duration * 0.7
-        const slowElapsed  = now - slowStart
-        const slowT        = Math.min(slowElapsed / slowDuration, 1)
-        const slowEased    = 1 - Math.pow(1 - slowT, 4)
-        const fastOffset   = (duration * 0.7 * 0.9) % totalH
-        offset = fastOffset + (targetOffset - fastOffset) * slowEased
+        // Deceleration phase — ease into exact TARGET_OFFSET
+        const slowT   = (t - 0.7) / 0.3
+        const eased   = 1 - Math.pow(1 - slowT, 4)
+        const fastEnd = TARGET_OFFSET * 0.6
+        offset = fastEnd + (TARGET_OFFSET - fastEnd) * eased
       }
 
       setOffsets(prev => { const n = [...prev]; n[reelIdx] = offset; return n })
@@ -75,11 +100,13 @@ export default function NumberMatchGame({ won, onDone }: Props) {
       if (t < 1) {
         rafRefs.current[reelIdx] = requestAnimationFrame(animate)
       } else {
-        setOffsets(prev => { const n = [...prev]; n[reelIdx] = targetOffset; return n })
+        // Snap exactly to target
+        setOffsets(prev => { const n = [...prev]; n[reelIdx] = TARGET_OFFSET; return n })
         setSpinning(prev => { const n = [...prev]; n[reelIdx] = false; return n })
         setStopped(prev => {
           const n = [...prev]; n[reelIdx] = true
-          if (n.every(Boolean)) setTimeout(() => setDone(true), 600)
+          // Auto-advance to result after all reels stop + brief pause
+          if (n.every(Boolean)) setTimeout(() => onDone(), 1800)
           return n
         })
       }
@@ -98,14 +125,15 @@ export default function NumberMatchGame({ won, onDone }: Props) {
     rafRefs.current.forEach(r => { if (r) cancelAnimationFrame(r) })
   }, [])
 
+  // The symbol visible in the middle row for each reel
   function getMiddleSymbol(reelIdx: number): string | null {
     if (!stopped[reelIdx]) return null
     return slots[reelIdx]
   }
 
-  const allStopped     = stopped.every(Boolean)
-  const middleSymbols  = [0, 1, 2].map(i => getMiddleSymbol(i))
-  const anySpinning    = spinning.some(Boolean)
+  const allStopped    = stopped.every(Boolean)
+  const middleSymbols = [0, 1, 2].map(i => getMiddleSymbol(i))
+  const anySpinning   = spinning.some(Boolean)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
@@ -159,7 +187,7 @@ export default function NumberMatchGame({ won, onDone }: Props) {
                   background: stopped[reelIdx] && won
                     ? 'rgba(245,158,11,0.15)'
                     : 'rgba(255,255,255,0.04)',
-                  borderTop: `1px solid ${stopped[reelIdx] && won ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  borderTop:    `1px solid ${stopped[reelIdx] && won ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'}`,
                   borderBottom: `1px solid ${stopped[reelIdx] && won ? 'rgba(245,158,11,0.5)' : 'rgba(255,255,255,0.1)'}`,
                   zIndex: 2, pointerEvents: 'none',
                   transition: 'background 0.4s, border 0.4s',
@@ -170,6 +198,7 @@ export default function NumberMatchGame({ won, onDone }: Props) {
                   position: 'absolute',
                   top: -offsets[reelIdx],
                   left: 0, right: 0,
+                  transition: stopped[reelIdx] ? 'top 0.05s' : 'none',
                 }}>
                   {reelSymbols[reelIdx].map((sym, j) => (
                     <div key={j} style={{
@@ -240,24 +269,31 @@ export default function NumberMatchGame({ won, onDone }: Props) {
         </div>
       )}
 
-      {/* Buttons */}
-      <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-        {!started && (
-          <button onClick={handleSpin} className="btn-primary" style={{ fontSize: '1.1rem', padding: '0.875rem 2rem' }}>
-            🎰 Pull Lever!
-          </button>
-        )}
-        {started && anySpinning && (
-          <button disabled className="btn-primary" style={{ fontSize: '1rem', opacity: 0.5, cursor: 'not-allowed' }}>
-            🌀 Spinning…
-          </button>
-        )}
-        {done && (
-          <button onClick={onDone} className="btn-primary" style={{ maxWidth: 200 }}>
-            See Your Prize →
-          </button>
-        )}
-      </div>
+      {/* Pull lever button — only shown before spin */}
+      {!started && (
+        <button onClick={handleSpin} style={{
+          fontSize: '1.1rem', padding: '0.875rem 2rem',
+          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+          border: 'none', borderRadius: '0.875rem',
+          color: '#fff', fontWeight: 700, cursor: 'pointer',
+          boxShadow: '0 0 20px rgba(124,58,237,0.4)',
+        }}>
+          🎰 Pull Lever!
+        </button>
+      )}
+
+      {started && anySpinning && (
+        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>
+          🌀 Spinning…
+        </div>
+      )}
+
+      {/* No "See Your Prize" button — result auto-advances after 1.8s */}
+      {allStopped && (
+        <p style={{ color: 'rgba(248,250,252,0.35)', fontSize: '0.78rem', margin: 0 }}>
+          Revealing your result…
+        </p>
+      )}
     </div>
   )
 }
