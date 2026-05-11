@@ -4,7 +4,10 @@ export type Prize = {
   name: string
   description?: string
   image_url?: string
+  quantity?: number        // how many can be won in total
+  claimed?: number         // how many have been claimed so far
   is_consolation?: boolean
+  is_grand_prize?: boolean
 }
 
 export type DesignationRule = {
@@ -19,51 +22,69 @@ export type AssignResult = {
 }
 
 /**
- * Assigns a prize to a participant based on their designation and probability.
- * Returns { prize, won } — won=false means consolation, won=true means real prize.
+ * Check whether a prize still has remaining quantity.
+ * If quantity is undefined/null we treat it as unlimited.
+ */
+function hasStock(prize: Prize): boolean {
+  if (prize.quantity == null) return true
+  const claimed = prize.claimed ?? 0
+  return claimed < prize.quantity
+}
+
+/**
+ * Assigns a prize to a participant based on:
+ *  1. Their designation → finds a matching rule
+ *  2. Probability roll  → win or consolation
+ *  3. Quantity check    → if the target prize is exhausted, fall back to consolation
+ *
+ * Returns { prize, won }
+ *   won = true  → real prize (pointer lands on that segment)
+ *   won = false → consolation / better-luck-next-time
  */
 export function assignPrize(
   designation: string,
   rules: DesignationRule[],
-  prizes: Prize[]
+  prizes: Prize[],
 ): AssignResult {
   const consolation = prizes.find(p => p.is_consolation) ?? null
 
+  // No matching rule → consolation
   const rule = rules.find(r =>
     r.designations.some(d => d.toLowerCase() === designation.toLowerCase())
   )
+  if (!rule) return { prize: consolation, won: false }
 
-  if (!rule) {
-    return { prize: consolation, won: false }
-  }
-
+  // Probability roll
   const roll = Math.random() * 100
   const won  = roll < rule.win_probability
+  if (!won) return { prize: consolation, won: false }
 
-  if (!won) {
+  // Find the target prize
+  const target = prizes.find(p => p.rank === rule.prize_rank)
+
+  // Quantity guard — if prize is sold out, fall back to consolation
+  if (!target || !hasStock(target)) {
     return { prize: consolation, won: false }
   }
 
-  const winPrize = prizes.find(p => p.rank === rule.prize_rank) ?? consolation
-  return { prize: winPrize, won: true }
+  return { prize: target, won: true }
 }
 
+/**
+ * Lighter helper used in some places — kept for backwards compat.
+ */
 export function determinePrize(
   designation: string,
-  rules: Array<{ designations: string[]; prize_rank: number; win_probability: number }>
+  rules: Array<{ designations: string[]; prize_rank: number; win_probability: number }>,
 ): { prizeRank: number; won: boolean } {
   const rule = rules.find(r =>
     r.designations.some(d => d.toLowerCase() === designation.toLowerCase())
   )
-  if (!rule) return { prizeRank: 5, won: false }
+  if (!rule) return { prizeRank: 99, won: false }
   const won = Math.random() * 100 < rule.win_probability
-  return { prizeRank: won ? rule.prize_rank : 5, won }
+  return { prizeRank: won ? rule.prize_rank : 99, won }
 }
 
-/**
- * Default designation groups:
- * C-Suite/VP → 90:10, Engineers/Devs → 80:20, Students → 50:50, Interns → 60:40
- */
 export const DEFAULT_DESIGNATION_GROUPS = [
   {
     label: 'C-Suite / VP / Director',
