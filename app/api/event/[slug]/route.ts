@@ -17,31 +17,23 @@ export async function GET(
 
   const { data: event, error } = await supabase
     .from('events')
-    .select(`
-      id,
-      name,
-      slug,
-      game_type,
-      form_fields,
-      ui_config,
-      prizes,
-      designation_rules,
-      linkedin_company_url,
-      linkedin_share_text
-    `)
+    .select('*')       // fetch everything — we'll filter sensitive fields out below
     .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
   if (error || !event) {
-    console.error('[event route] error:', error?.message, '| slug:', slug)
+    console.error('[event route] supabase error:', error?.message, '| slug:', slug)
     return NextResponse.json({ error: 'Event not found' }, { status: 404 })
   }
 
-  // Sort prizes by rank so wheel segments are always in consistent order
+  // Sort prizes by rank if the column exists and is an array
   if (Array.isArray(event.prizes)) {
     event.prizes.sort((a: { rank: number }, b: { rank: number }) => a.rank - b.rank)
   }
 
-  return NextResponse.json({ event })
+  // Strip server-only fields before sending to the client
+  const { webhook_secret, ...safeEvent } = event
+
+  return NextResponse.json({ event: safeEvent })
 }
