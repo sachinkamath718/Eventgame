@@ -24,37 +24,26 @@ const SEG_COLORS = [
   '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
 ]
 
+// Normalise any angle into [0, 2π)
+function norm(r: number): number {
+  return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+}
+
 export default function SpinWheelGame({
   prizes, targetRank, won, onDone, sessionMode, registrationId,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
   const [done, setDone]         = useState(false)
-  const spinRef = useRef(0)          // current rotation in radians
+  const spinRef = useRef(0)          // current rotation in radians (kept normalised)
   const rafRef  = useRef<number>(0)
   const loopRef = useRef(false)
   const supabase = createClient()
 
   // Segments: exclude grand prizes, max 8
   const wheelPrizes = prizes.filter(p => !p.is_grand_prize).slice(0, 8)
-  const segCount    = wheelPrizes.length || 1
+  const segCount    = Math.max(wheelPrizes.length, 1)
   const segAngle    = (2 * Math.PI) / segCount
-
-  // ─── Target index ──────────────────────────────────────────────────────────
-  // The pointer sits at the TOP of the canvas (12 o'clock = -π/2).
-  // A segment at index `i` occupies angles [i·segAngle, (i+1)·segAngle] relative
-  // to the wheel's current rotation.  To land segment `i` under the pointer we
-  // need the wheel's rotation `R` to satisfy:
-  //   R + i·segAngle + segAngle/2  ≡  -π/2   (mod 2π)
-  //   ⟹  R  =  -π/2  -  i·segAngle  -  segAngle/2   (+ full spins for drama)
-  function getTargetIdx(isWon: boolean, rank: number): number {
-    if (!isWon) {
-      const idx = wheelPrizes.findIndex(p => p.is_consolation)
-      return idx >= 0 ? idx : segCount - 1
-    }
-    const idx = wheelPrizes.findIndex(p => p.rank === rank)
-    return idx >= 0 ? idx : 0
-  }
 
   // ─── Draw ──────────────────────────────────────────────────────────────────
   function drawWheel(rot: number) {
@@ -74,7 +63,8 @@ export default function SpinWheelGame({
     ctx.fillStyle = 'rgba(255,255,255,0.04)'
     ctx.fill()
 
-    // Segments
+    if (segCount === 0) return
+
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
       const end   = start + segAngle
@@ -98,7 +88,6 @@ export default function SpinWheelGame({
       ctx.font = 'bold 12px Inter, sans-serif'
       const label = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
       ctx.fillText(label.length > 14 ? label.slice(0, 14) + '…' : label, r - 10, 4)
-      // Rank badge
       ctx.fillStyle = 'rgba(255,255,255,0.4)'
       ctx.font = '10px Inter, sans-serif'
       ctx.fillText(wheelPrizes[i]?.is_consolation ? '' : `#${wheelPrizes[i]?.rank}`, r - 10, -8)
@@ -118,8 +107,20 @@ export default function SpinWheelGame({
     ctx.stroke()
   }
 
-  // Initial draw
-  useEffect(() => { drawWheel(0) }, [wheelPrizes.length])  // eslint-disable-line
+  // ─── Redraw whenever prizes change (handles async prize load) ─────────────
+  useEffect(() => {
+    drawWheel(spinRef.current)
+  }, [wheelPrizes.length]) // eslint-disable-line
+
+  // ─── Target index ──────────────────────────────────────────────────────────
+  function getTargetIdx(isWon: boolean, rank: number): number {
+    if (!isWon) {
+      const idx = wheelPrizes.findIndex(p => p.is_consolation)
+      return idx >= 0 ? idx : segCount - 1
+    }
+    const idx = wheelPrizes.findIndex(p => p.rank === rank)
+    return idx >= 0 ? idx : 0
+  }
 
   // ─── Infinite loop for session waiting ────────────────────────────────────
   function startLoop() {
@@ -128,7 +129,8 @@ export default function SpinWheelGame({
     function loop(ts: number) {
       if (!loopRef.current) return
       if (!start) start = ts
-      const rot = ((ts - start) * 0.002) % (2 * Math.PI)
+      // Keep rotation normalised so spinRef never grows unboundedly
+      const rot = norm((ts - start) * 0.002)
       spinRef.current = rot
       drawWheel(rot)
       rafRef.current = requestAnimationFrame(loop)
@@ -145,39 +147,44 @@ export default function SpinWheelGame({
   function spinToTarget(isWon: boolean, rank: number) {
     const idx = getTargetIdx(isWon, rank)
 
-    // The angle the centre of segment `idx` needs to be at to sit under the
-    // top pointer (−π/2).  We solve for the wheel rotation R:
-    //   R + idx·segAngle + segAngle/2 = -π/2  (mod 2π)
-    const targetRot = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
+    // The pointer is at 12 o'clock = -π/2 in canvas coordinates.
+    // Segment i's centre sits at: rot + i·segAngle + segAngle/2
+    // We need that to equal -π/2 (mod 2π), so:
+    //   rot = -π/2 - i·segAngle - segAngle/2
+    const exactTarget = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
+    const targetNorm_ = norm(exactTarget)
 
-    // Add enough full clockwise spins so the wheel travels at least ~5 turns
-    const currentNorm = ((spinRef.current % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-    const targetNorm  = ((targetRot      % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
-    const delta       = (targetNorm - currentNorm + 2 * Math.PI) % (2 * Math.PI)
-    // Minimum 5 full spins + the natural delta
+    // How far to travel clockwise from current normalised position
+    const currentNorm_ = norm(spinRef.current)
+    const delta = (targetNorm_ - currentNorm_ + 2 * Math.PI) % (2 * Math.PI)
+
+    // At least 5 full spins for drama, plus the natural delta
     const totalTravel = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI + delta
 
-    const startRot  = spinRef.current
+    // Work entirely in a local frame starting at 0 so no float-precision issues
+    const startRot  = 0
     const startTime = performance.now()
     const duration  = 4500
+    // Save the absolute start so we can offset during animation
+    const absStart  = spinRef.current
 
     function animate(now: number) {
-      const t      = Math.min((now - startTime) / duration, 1)
-      // Ease-out quart for a satisfying deceleration
-      const eased  = 1 - Math.pow(1 - t, 4)
-      const cur    = startRot + totalTravel * eased
+      const t     = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - t, 4)       // ease-out quart
+      const local = totalTravel * eased
+      // Keep spinRef normalised throughout
+      const cur   = norm(absStart + local)
       spinRef.current = cur
       drawWheel(cur)
 
       if (t < 1) {
         rafRef.current = requestAnimationFrame(animate)
       } else {
-        // Snap exactly to the correct angle to eliminate float drift
-        const finalRot = startRot + totalTravel
-        drawWheel(finalRot)
+        // Snap exactly to the correct normalised angle
+        spinRef.current = norm(absStart + totalTravel)
+        drawWheel(spinRef.current)
         setSpinning(false)
         setDone(true)
-        // Auto-show result after a brief pause so user can see where it landed
         setTimeout(() => onDone(), 1400)
       }
     }
@@ -206,14 +213,14 @@ export default function SpinWheelGame({
       }, (payload) => {
         const updated = payload.new as Record<string, unknown>
         const isWon   = updated.game_result === 'won'
-        const rank    = (updated.prize_rank_won as number) ?? (segCount)
+        const rank    = (updated.prize_rank_won as number) ?? segCount
         stopLoop()
         spinToTarget(isWon, rank)
       })
       .subscribe()
 
     return () => { stopLoop(); supabase.removeChannel(ch) }
-  }, [sessionMode, registrationId])  // eslint-disable-line
+  }, [sessionMode, registrationId]) // eslint-disable-line
 
   // Cleanup on unmount
   useEffect(() => () => {
@@ -239,7 +246,7 @@ export default function SpinWheelGame({
 
       {/* Wheel + pointer */}
       <div style={{ position: 'relative', display: 'inline-block' }}>
-        {/* Top pointer — fixed, points down into wheel at 12 o'clock */}
+        {/* Top pointer — fixed at 12 o'clock */}
         <div style={{
           position: 'absolute',
           top: -10,
@@ -256,7 +263,10 @@ export default function SpinWheelGame({
           ref={canvasRef}
           width={320}
           height={320}
-          style={{ borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default' }}
+          style={{
+            borderRadius: '50%', display: 'block',
+            cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default',
+          }}
           onClick={spin}
         />
       </div>
@@ -271,7 +281,6 @@ export default function SpinWheelGame({
             color: '#fff', fontWeight: 700, fontSize: '1rem',
             cursor: 'pointer',
             boxShadow: '0 0 20px rgba(124,58,237,0.4)',
-            transition: 'all 0.2s',
           }}
         >
           Spin
@@ -289,8 +298,6 @@ export default function SpinWheelGame({
           Your wheel is spinning — the host will announce the winner shortly
         </p>
       )}
-
-      {/* No button after spin — onDone fires automatically via setTimeout */}
     </div>
   )
 }
