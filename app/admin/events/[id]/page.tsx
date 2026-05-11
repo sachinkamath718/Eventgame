@@ -12,7 +12,8 @@ const GAMES = [
 
 type FieldMapping = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options?: string }
 type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
-type Prize = { rank: number; name: string; description: string; image_url: string; is_consolation: boolean; is_grand_prize: boolean }
+// ↓ quantity added
+type Prize = { rank: number; name: string; description: string; image_url: string; quantity: number; is_consolation: boolean; is_grand_prize: boolean }
 
 const F: React.CSSProperties = {
   width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.07)',
@@ -45,12 +46,14 @@ export default function EditEventPage() {
   const [heading, setHeading]   = useState('')
   const [logoUrl, setLogo]      = useState('')
   const [footerText, setFooter] = useState('')
-  const [prizes, setPrizes]     = useState<Prize[]>([
-    { rank: 1, name: 'Grand Prize',           description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-    { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-    { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-    { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', is_consolation: false, is_grand_prize: false },
-    { rank: 5, name: 'Better Luck Next Time', description: '', image_url: '', is_consolation: true,  is_grand_prize: false },
+
+  // ↓ quantity defaults added
+  const [prizes, setPrizes] = useState<Prize[]>([
+    { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: false },
+    { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', quantity: 3,  is_consolation: false, is_grand_prize: false },
+    { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', quantity: 5,  is_consolation: false, is_grand_prize: false },
+    { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', quantity: 10, is_consolation: false, is_grand_prize: false },
+    { rank: 5, name: 'Better Luck Next Time', description: '', image_url: '', quantity: 0,  is_consolation: true,  is_grand_prize: false },
   ])
   const [rules, setRules]   = useState<Rule[]>(
     DEFAULT_DESIGNATION_GROUPS.map(g => ({
@@ -76,8 +79,22 @@ export default function EditEventPage() {
       setBg(ui.bgColor || '#0a0a1a'); setBg2(ui.bgColor2 || '#312e81')
       setAccent(ui.accentColor || '#f59e0b')
       setHeading(ui.heading || ''); setLogo(ui.logoUrl || ''); setFooter(ui.footerText || '')
-      if (ev.prizes?.length) setPrizes(ev.prizes.map((p: Prize) => ({ rank: p.rank, name: p.name, description: p.description || '', image_url: p.image_url || '', is_consolation: p.is_consolation, is_grand_prize: p.is_grand_prize })))
-      if (ev.designation_rules?.length) setRules(ev.designation_rules.map((r: { label: string; designations: string[]; prize_rank: number; win_probability: number }) => ({ label: r.label || '', designations: (r.designations || []).join(', '), prize_rank: r.prize_rank, win_probability: r.win_probability })))
+      // ↓ map quantity from API, defaulting to 1 for existing prizes without it
+      if (ev.prizes?.length) setPrizes(ev.prizes.map((p: Prize) => ({
+        rank: p.rank,
+        name: p.name,
+        description: p.description || '',
+        image_url: p.image_url || '',
+        quantity: p.quantity ?? 1,
+        is_consolation: p.is_consolation,
+        is_grand_prize: p.is_grand_prize,
+      })))
+      if (ev.designation_rules?.length) setRules(ev.designation_rules.map((r: { label: string; designations: string[]; prize_rank: number; win_probability: number }) => ({
+        label: r.label || '',
+        designations: (r.designations || []).join(', '),
+        prize_rank: r.prize_rank,
+        win_probability: r.win_probability,
+      })))
       if (ev.form_fields?.length) setFields(ev.form_fields)
       setLoading(false)
     })
@@ -92,8 +109,14 @@ export default function EditEventPage() {
         body: JSON.stringify({
           id, name, slug, is_active: isActive, game_type: gameType,
           ui_config: { bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText, bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)` },
-          form_fields: fields, prizes,
-          designation_rules: rules.map(r => ({ label: r.label, designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean), prize_rank: r.prize_rank, win_probability: r.win_probability })),
+          form_fields: fields,
+          prizes, // ↑ quantity is part of Prize so it's included automatically
+          designation_rules: rules.map(r => ({
+            label: r.label,
+            designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
+            prize_rank: r.prize_rank,
+            win_probability: r.win_probability,
+          })),
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
@@ -143,7 +166,6 @@ export default function EditEventPage() {
           <h1 style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Edit: {name}</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {/* Grand Prize Session button */}
           <button
             onClick={() => router.push(`/admin/events/${id}/session`)}
             style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#fcd34d', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
@@ -171,6 +193,7 @@ export default function EditEventPage() {
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
 
+          {/* TAB 0: Details */}
           {tab === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
               <div><label style={L}>Event Name</label><input style={F} value={name} onChange={e => setName(e.target.value)} /></div>
@@ -188,6 +211,7 @@ export default function EditEventPage() {
             </div>
           )}
 
+          {/* TAB 1: Form Fields */}
           {tab === 1 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -215,6 +239,7 @@ export default function EditEventPage() {
             </div>
           )}
 
+          {/* TAB 2: Design */}
           {tab === 2 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div><label style={L}>Background Start</label><input type="color" value={bgColor} onChange={e => setBg(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
@@ -230,6 +255,7 @@ export default function EditEventPage() {
             </div>
           )}
 
+          {/* TAB 3: Game */}
           {tab === 3 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem' }}>
               {GAMES.map(g => (
@@ -242,18 +268,53 @@ export default function EditEventPage() {
             </div>
           )}
 
+          {/* TAB 4: Prizes — quantity column added */}
           {tab === 4 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {/* column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', paddingLeft: '0.75rem' }}>
+                {['Rank', 'Prize Name', 'Image URL', 'Qty'].map(h => (
+                  <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
+                ))}
+              </div>
               {prizes.map((p, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>{p.is_consolation ? 'Consolation' : `Rank ${p.rank}`}</span>
-                  <input style={{ ...F, padding: '0.5rem 0.75rem' }} value={p.name} placeholder="Prize name" onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-                  <input style={{ ...F, padding: '0.5rem 0.75rem' }} value={p.image_url} placeholder="Image URL" onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, image_url: e.target.value } : x))} />
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {p.is_consolation ? 'Consolation' : `Rank ${p.rank}`}
+                  </span>
+                  <input
+                    style={{ ...F, padding: '0.5rem 0.75rem' }}
+                    value={p.name}
+                    placeholder="Prize name"
+                    onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                  />
+                  <input
+                    style={{ ...F, padding: '0.5rem 0.75rem' }}
+                    value={p.image_url}
+                    placeholder="Image URL (optional)"
+                    onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, image_url: e.target.value } : x))}
+                  />
+                  {/* ↓ quantity input — disabled (shown as ∞) for consolation prizes */}
+                  {p.is_consolation ? (
+                    <span style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '1.1rem' }}>∞</span>
+                  ) : (
+                    <input
+                      type="number"
+                      min={0}
+                      style={{ ...F, padding: '0.5rem', textAlign: 'center' }}
+                      value={p.quantity}
+                      onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, quantity: Math.max(0, Number(e.target.value)) } : x))}
+                    />
+                  )}
                 </div>
               ))}
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)' }}>
+                Qty = total available units of each prize. Consolation prizes are unlimited (∞).
+              </p>
             </div>
           )}
 
+          {/* TAB 5: Win Rules */}
           {tab === 5 && (
             <div>
               <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Set win probability per designation group.</p>
@@ -283,6 +344,7 @@ export default function EditEventPage() {
             </div>
           )}
 
+          {/* TAB 6: QR Code */}
           {tab === 6 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', textAlign: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>QR Code for &ldquo;{name}&rdquo;</h3>
