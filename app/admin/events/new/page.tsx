@@ -11,7 +11,7 @@ const GAMES = [
 ]
 
 type Prize = { rank: number; name: string; description: string; image_url: string; quantity: number; is_consolation: boolean; is_grand_prize: boolean }
-type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string }
+type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string; enabled?: boolean }
 type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
 type Saved = { id: string; slug: string }
 
