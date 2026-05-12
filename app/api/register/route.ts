@@ -21,13 +21,7 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    // FIX: event locked (is_active=false) during a live session — block new registrations
-    if (event.is_active === false) {
-      return NextResponse.json(
-        { error: 'Registrations are paused during the live grand prize draw. Please try again shortly.' },
-        { status: 423 }
-      )
-    }
+    
 
     // form_data is keyed by fieldKey — read directly
     const get = (key: string): string => (form_data[key] || '').toString().trim()
