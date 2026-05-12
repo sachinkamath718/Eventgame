@@ -8,6 +8,9 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
+  // FIX: removed .eq('is_active', true) — events locked during a grand prize session
+  // (is_active=false) must still be fetchable so participants can see the waiting screen.
+  // The register API handles the lock by returning 423 when is_active=false.
   const { data: event, error } = await supabase
     .from('events')
     .select(`
@@ -15,6 +18,7 @@ export async function GET(
       name,
       slug,
       game_type,
+      is_active,
       form_fields,
       ui_config,
       prizes (
@@ -33,7 +37,6 @@ export async function GET(
       )
     `)
     .eq('slug', slug)
-    .eq('is_active', true)
     .single()
 
   if (error || !event) {
