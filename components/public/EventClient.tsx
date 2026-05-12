@@ -12,16 +12,18 @@ interface Prize {
 }
 
 interface FormField {
-  formLabel: string
-  fieldKey: string
-  required: boolean
-  fieldType: string
-  options: string
+  formLabel: string; fieldKey: string; required: boolean
+  fieldType: string; options: string; enabled?: boolean
 }
 
 interface RegResult {
-  registrationId: string; prizeName: string; prizeRank: number
-  prizeImageUrl?: string; prizeDescription?: string; won: boolean; name?: string
+  registrationId:    string
+  prizeName:         string
+  prizeRank:         number
+  prizeImageUrl?:    string
+  prizeDescription?: string
+  won:               boolean
+  name?:             string
   isGrandPrizeSession?: boolean
 }
 
@@ -38,8 +40,8 @@ interface LuckyEvent {
 type Stage = 'form' | 'game' | 'result'
 
 export default function EventClient({ event }: { event: LuckyEvent }) {
-  const [stage, setStage]          = useState<Stage>('form')
-  const [regResult, setRegResult]  = useState<RegResult | null>(null)
+  const [stage, setStage]         = useState<Stage>('form')
+  const [regResult, setRegResult] = useState<RegResult | null>(null)
   const [participantName, setName] = useState('')
 
   const ui     = event.ui_config || {}
@@ -49,7 +51,6 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
   const accent = ui.accentColor || '#f59e0b'
   const prizes = event.prizes || []
 
-  // Listen for registration completion
   useEffect(() => {
     function handleReg(e: CustomEvent<RegResult>) {
       setRegResult(e.detail)
@@ -60,12 +61,10 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
     return () => window.removeEventListener('registration-complete', handleReg as EventListener)
   }, [])
 
-  const stages: Stage[] = ['form', 'game', 'result']
-  const stageIdx        = stages.indexOf(stage)
-  const isGrandPrizeSession = !!(regResult?.isGrandPrizeSession)
+  const stages: Stage[]  = ['form', 'game', 'result']
+  const stageIdx         = stages.indexOf(stage)
+  const isGrandPrize     = !!(regResult?.isGrandPrizeSession)
 
-  // Re-fetch the latest registration data before showing result
-  // This ensures grand prize winners see the correct prize (not their spin wheel result)
   async function handleGameDone() {
     if (!regResult) { setStage('result'); return }
     try {
@@ -75,46 +74,36 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
         const r = data.registration
         setRegResult(prev => prev ? {
           ...prev,
-          prizeName:        r.prize_name        ?? prev.prizeName,
-          prizeRank:        r.prize_rank_won     ?? prev.prizeRank,
-          prizeImageUrl:    r.prize_image_url    ?? prev.prizeImageUrl,
-          prizeDescription: r.prize_description  ?? prev.prizeDescription,
-          won:              r.game_result === 'won',
+          prizeName:           r.prize_name         ?? prev.prizeName,
+          prizeRank:           r.prize_rank_won      ?? prev.prizeRank,
+          prizeImageUrl:       r.prize_image_url     ?? prev.prizeImageUrl,
+          prizeDescription:    r.prize_description   ?? prev.prizeDescription,
+          won:                 r.game_result === 'won',
           isGrandPrizeSession: r.is_grand_prize_winner ?? prev.isGrandPrizeSession,
         } : prev)
       }
-    } catch {
-      // If fetch fails, fall through and show whatever we have
-    }
+    } catch { /* fall through with existing state */ }
     setStage('result')
   }
 
   return (
     <main style={{
-      minHeight: '100vh',
-      background: bg,
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center',
+      minHeight: '100vh', background: bg,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '2rem 1rem 4rem',
-      fontFamily: 'Inter, sans-serif',
-      color: '#f8fafc',
+      fontFamily: 'Inter, sans-serif', color: '#f8fafc',
     }}>
 
-      {/* Logo */}
       {ui.logoUrl && (
         <img src={ui.logoUrl} alt="logo"
           style={{ height: 48, objectFit: 'contain', marginBottom: '1.5rem' }} />
       )}
 
-      {/* Heading */}
       <div style={{ textAlign: 'center', marginBottom: '2rem', maxWidth: 480 }}>
         <h1 style={{
-          fontWeight: 900,
-          fontSize: 'clamp(1.6rem,5vw,2.4rem)',
-          margin: '0 0 0.5rem',
-          color: accent,
-          textShadow: `0 0 32px ${accent}55`,
-          letterSpacing: '-0.02em',
+          fontWeight: 900, fontSize: 'clamp(1.6rem,5vw,2.4rem)',
+          margin: '0 0 0.5rem', color: accent,
+          textShadow: `0 0 32px ${accent}55`, letterSpacing: '-0.02em',
         }}>
           {ui.heading || event.name}
         </h1>
@@ -132,9 +121,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
                 width: 24, height: 24, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: '0.65rem', fontWeight: 700,
-                background: stageIdx === i
-                  ? accent
-                  : stageIdx > i ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
+                background: stageIdx === i ? accent : stageIdx > i ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
                 color: stageIdx === i ? '#0a0a1a' : stageIdx > i ? '#4ade80' : 'rgba(255,255,255,0.35)',
                 border: stageIdx === i ? `2px solid ${accent}` : '2px solid transparent',
                 transition: 'all 0.3s',
@@ -176,12 +163,10 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           textAlign: 'center',
         }}>
           <h2 style={{ fontWeight: 700, fontSize: '1.25rem', margin: '0 0 0.375rem' }}>
-            {isGrandPrizeSession ? 'Live Grand Prize Draw' : 'Your Turn'}
+            Your Turn
           </h2>
           <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.82rem', margin: '0 0 1.5rem' }}>
-            {isGrandPrizeSession
-              ? 'The host is selecting the grand prize winner…'
-              : event.game_type === 'spin_wheel'
+            {event.game_type === 'spin_wheel'
               ? 'Spin the wheel to reveal your prize'
               : event.game_type === 'number_match'
               ? 'Pull the lever — match all 3 to win'
@@ -194,7 +179,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
               targetRank={regResult.prizeRank}
               won={regResult.won}
               onDone={handleGameDone}
-              sessionMode={isGrandPrizeSession}
+              sessionMode={isGrandPrize}
               registrationId={regResult.registrationId}
             />
           )}
