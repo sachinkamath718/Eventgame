@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface FormField {
   formLabel: string
@@ -33,7 +34,7 @@ interface RegResult {
   prizeDescription?: string
   won:               boolean
   name?:             string
-  alreadyRegistered?: boolean
+  isGrandPrizeSession?: boolean
 }
 
 const DESIGNATIONS = [
@@ -52,7 +53,10 @@ const DEFAULT_FIELDS: FormField[] = [
 ]
 
 export default function RegisterForm({ event }: { event: LuckyEvent }) {
-  // Filter out disabled fields — enabled:false means admin toggled it off
+  const pathname = usePathname() // e.g. "/my-event"
+  const slug     = pathname?.split('/').filter(Boolean)[0] ?? ''
+
+  // Filter out disabled fields
   const fields: FormField[] = (
     event.form_fields && event.form_fields.length > 0
       ? event.form_fields
@@ -104,7 +108,24 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
     }
   }
 
+  // After successful registration:
+  // - Grand prize session → redirect to /{slug}/session?regId=xxx (spinning wheel page)
+  // - Normal → fire event so EventClient moves to the game stage
   if (result) {
+    if (result.isGrandPrizeSession) {
+      // Hard-navigate to the session page with this registration's ID
+      if (typeof window !== 'undefined') {
+        window.location.href = `/${slug}/session?regId=${result.registrationId}`
+      }
+      return (
+        <div style={{ textAlign: 'center', padding: '1.5rem' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🎰</div>
+          <p style={{ color: 'rgba(248,250,252,0.7)' }}>Joining the Grand Prize Draw…</p>
+        </div>
+      )
+    }
+
+    // Normal spin wheel flow
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('registration-complete', { detail: result }))
     }
