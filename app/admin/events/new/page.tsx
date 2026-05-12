@@ -10,13 +10,11 @@ const GAMES = [
   { id: 'anime_match',  label: '🐉 Anime Match',  desc: 'Memory card pairs' },
 ]
 
-// ↓ quantity added to type
 type Prize = { rank: number; name: string; description: string; image_url: string; quantity: number; is_consolation: boolean; is_grand_prize: boolean }
-type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string }
+type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string; enabled?: boolean }
 type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
 type Saved = { id: string; slug: string }
 
-// ↓ quantity defaults added
 const DEFAULT_PRIZES: Prize[] = [
   { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: false },
   { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', quantity: 3,  is_consolation: false, is_grand_prize: false },
@@ -95,7 +93,7 @@ export default function NewEventPage() {
           name, slug: finalSlug, game_type: 'spin_wheel',
           form_fields: DEFAULT_FIELDS,
           ui_config: { bgColor: '#0a0a1a', bgColor2: '#312e81', accentColor: '#f59e0b' },
-          prizes: DEFAULT_PRIZES, // ↑ quantity included via DEFAULT_PRIZES
+          prizes: DEFAULT_PRIZES,
           designation_rules: DEFAULT_DESIGNATION_GROUPS.map(g => ({
             label: g.label, designations: g.designations,
             prize_rank: g.prize_rank, win_probability: g.win_probability,
@@ -122,7 +120,7 @@ export default function NewEventPage() {
       bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText,
       bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)`,
     },
-    prizes, // ↑ quantity is in Prize so it's included automatically
+    prizes,
     designation_rules: rules.map(r => ({
       label: r.label,
       designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
@@ -188,8 +186,7 @@ export default function NewEventPage() {
     img.src = url
   }
 
-const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '' }])
-
+  const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '', enabled: true }])
   const removeField = (i: number): void => setFields(fs => fs.filter((_, j) => j !== i))
   const updateField = (i: number, patch: Partial<Field>): void => setFields(fs => fs.map((f, j) => j === i ? { ...f, ...patch } : f))
 
@@ -287,136 +284,118 @@ const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: 
           {tab === 0 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Fields shown in the participant registration form.</p>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
+                  Fields shown in the participant registration form. Disable to hide from future registrations — past data is always preserved.
+                </p>
                 <button onClick={addField} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Add Field</button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                {['Label', 'Type', 'Maps To', 'Req', ''].map(h => <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>)}
+
+              {/* Column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                {['Label', 'Type', 'Maps To', 'Req', 'On', ''].map(h => (
+                  <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
+                ))}
               </div>
-              {fields.map((field, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <input style={{ ...F, padding: '0.5rem 0.7rem' }} value={field.formLabel} placeholder="Label" onChange={e => updateField(i, { formLabel: e.target.value })} />
-                  <select style={{ ...F, padding: '0.5rem', appearance: 'none' }} value={field.fieldType} onChange={e => updateField(i, { fieldType: e.target.value })}>
-                    {['text','email','tel','number','select'].map(t => <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>)}
-                  </select>
-                  <select style={{ ...F, padding: '0.5rem 0.4rem', appearance: 'none', fontSize: '0.78rem' }} value={field.fieldKey} onChange={e => updateField(i, { fieldKey: e.target.value })}>
-                    {['name','email','phone_number','company','designation','custom'].map(k => <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>)}
-                  </select>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <input type="checkbox" checked={field.required} onChange={e => updateField(i, { required: e.target.checked })} style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }} />
+
+              {fields.map((field, i) => {
+                const enabled = field.enabled !== false
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto',
+                      gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center',
+                      opacity: enabled ? 1 : 0.4, transition: 'opacity 0.2s',
+                    }}
+                  >
+                    <input
+                      style={{ ...F, padding: '0.5rem 0.7rem' }}
+                      value={field.formLabel}
+                      placeholder="Label"
+                      onChange={e => updateField(i, { formLabel: e.target.value })}
+                    />
+                    <select
+                      style={{ ...F, padding: '0.5rem', appearance: 'none' }}
+                      value={field.fieldType}
+                      onChange={e => updateField(i, { fieldType: e.target.value })}
+                    >
+                      {['text','email','tel','number','select'].map(t => (
+                        <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>
+                      ))}
+                    </select>
+                    <select
+                      style={{ ...F, padding: '0.5rem 0.4rem', appearance: 'none', fontSize: '0.78rem' }}
+                      value={field.fieldKey}
+                      onChange={e => updateField(i, { fieldKey: e.target.value })}
+                    >
+                      {['name','email','phone_number','company','designation','custom'].map(k => (
+                        <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>
+                      ))}
+                    </select>
+
+                    {/* Required checkbox */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={field.required}
+                        onChange={e => updateField(i, { required: e.target.checked })}
+                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
+                      />
+                    </div>
+
+                    {/* Enabled toggle */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <button
+                        type="button"
+                        title={enabled ? 'Click to disable (hides from form, keeps past data)' : 'Click to enable'}
+                        onClick={() => updateField(i, { enabled: !enabled })}
+                        style={{
+                          width: 32, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                          background: enabled ? '#7c3aed' : 'rgba(255,255,255,0.15)',
+                          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute', top: 2,
+                          left: enabled ? 16 : 2,
+                          width: 14, height: 14, borderRadius: '50%',
+                          background: '#fff', transition: 'left 0.2s', display: 'block',
+                        }} />
+                      </button>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => removeField(i)}
+                      title="Remove field permanently from this event config"
+                      style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >✕</button>
                   </div>
-                  <button onClick={() => removeField(i)} style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
-                </div>
-              ))}
+                )
+              })}
+
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)', lineHeight: 1.5 }}>
+                <strong style={{ color: 'rgba(248,250,252,0.45)' }}>Toggle Off</strong> = hidden from new registrations, all past responses kept intact.{' '}
+                <strong style={{ color: 'rgba(248,113,113,0.5)' }}>✕ Remove</strong> = removes from this event config only (past data in form_data column is still safe).
+              </p>
             </div>
           )}
 
-    {/* TAB: Form Fields */}
-{tab === (/* 1 for edit page, 0 for new page */) && (
-  <div>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-      <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
-        Fields shown in the participant registration form. Disable to hide from future registrations — past data is always preserved.
-      </p>
-      <button
-        onClick={() => setFields(fs => [...fs, {
-          formLabel: '', fieldKey: `custom_${Date.now()}`,
-          required: false, fieldType: 'text', options: '', enabled: true,
-        }])}
-        style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
-      >+ Add Field</button>
-    </div>
-
-    {/* Column headers */}
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
-      {['Label', 'Type', 'Maps To', 'Req', 'On', ''].map(h => (
-        <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
-      ))}
-    </div>
-
-    {fields.map((field, i) => {
-      const enabled = field.enabled !== false
-      return (
-        <div
-          key={i}
-          style={{
-            display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto',
-            gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center',
-            opacity: enabled ? 1 : 0.4, transition: 'opacity 0.2s',
-          }}
-        >
-          <input
-            style={{ ...F, padding: '0.5rem 0.7rem' }}
-            value={field.formLabel}
-            placeholder="Label"
-            onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, formLabel: e.target.value } : f))}
-          />
-          <select
-            style={{ ...F, padding: '0.5rem', appearance: 'none' }}
-            value={field.fieldType}
-            onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldType: e.target.value } : f))}
-          >
-            {['text','email','tel','number','select'].map(t => (
-              <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>
-            ))}
-          </select>
-          <select
-            style={{ ...F, padding: '0.5rem 0.4rem', appearance: 'none', fontSize: '0.78rem' }}
-            value={field.fieldKey}
-            onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldKey: e.target.value } : f))}
-          >
-            {['name','email','phone_number','company','designation','custom'].map(k => (
-              <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>
-            ))}
-          </select>
-
-          {/* Required checkbox */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <input
-              type="checkbox"
-              checked={field.required}
-              onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, required: e.target.checked } : f))}
-              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
-            />
-          </div>
-
-          {/* Enabled toggle — disabling hides from future forms, never deletes past data */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <button
-              type="button"
-              title={enabled ? 'Click to disable (hides from form, keeps past data)' : 'Click to enable'}
-              onClick={() => setFields(fs => fs.map((f, j) => j === i ? { ...f, enabled: !enabled } : f))}
-              style={{
-                width: 32, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
-                background: enabled ? '#7c3aed' : 'rgba(255,255,255,0.15)',
-                position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: 'absolute', top: 2,
-                left: enabled ? 16 : 2,
-                width: 14, height: 14, borderRadius: '50%',
-                background: '#fff', transition: 'left 0.2s', display: 'block',
-              }} />
-            </button>
-          </div>
-
-          {/* Remove button */}
-          <button
-            onClick={() => setFields(fs => fs.filter((_, j) => j !== i))}
-            title="Remove field permanently from this event config"
-            style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
-          >✕</button>
-        </div>
-      )
-    })}
-
-    <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)', lineHeight: 1.5 }}>
-      <strong style={{ color: 'rgba(248,250,252,0.45)' }}>Toggle Off</strong> = hidden from new registrations, all past responses kept intact.{' '}
-      <strong style={{ color: 'rgba(248,113,113,0.5)' }}>✕ Remove</strong> = removes from this event config only (past data in form_data column is still safe).
-    </p>
-  </div>
-)}
+          {/* TAB 1: Design */}
+          {tab === 1 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div><label style={L}>Background Start</label><input type="color" value={bgColor} onChange={e => setBg(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
+              <div><label style={L}>Background End</label><input type="color" value={bgColor2} onChange={e => setBg2(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
+              <div><label style={L}>Accent Color</label><input type="color" value={accent} onChange={e => setAccent(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
+              <div><label style={L}>Logo URL</label><input style={F} value={logoUrl} placeholder="https://…/logo.png" onChange={e => setLogo(e.target.value)} /></div>
+              <div style={{ gridColumn: '1/-1' }}><label style={L}>Heading</label><input style={F} value={heading} placeholder={`🎉 ${name}`} onChange={e => setHeading(e.target.value)} /></div>
+              <div style={{ gridColumn: '1/-1' }}><label style={L}>Footer Text</label><input style={F} value={footerText} placeholder="© 2025 Your Company" onChange={e => setFooter(e.target.value)} /></div>
+              <div style={{ gridColumn: '1/-1', borderRadius: '0.75rem', padding: '1.5rem', background: `linear-gradient(135deg,${bgColor},${bgColor2})`, textAlign: 'center' }}>
+                <div style={{ fontWeight: 900, fontSize: '1.2rem', color: accent }}>{heading || `🎉 ${name}`}</div>
+                <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.3rem' }}>Fill in your details to spin & win!</div>
+              </div>
+            </div>
+          )}
 
           {/* TAB 2: Game */}
           {tab === 2 && (
@@ -431,7 +410,7 @@ const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: 
             </div>
           )}
 
-          {/* TAB 3: Prizes — quantity column added */}
+          {/* TAB 3: Prizes */}
           {tab === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {/* column headers */}
@@ -457,7 +436,6 @@ const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: 
                     placeholder="Image URL (optional)"
                     onChange={e => setPrizes(ps => ps.map((x, j) => j === i ? { ...x, image_url: e.target.value } : x))}
                   />
-                  {/* ↓ quantity input — ∞ symbol for consolation prizes */}
                   {p.is_consolation ? (
                     <span style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '1.1rem' }}>∞</span>
                   ) : (
