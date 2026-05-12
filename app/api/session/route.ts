@@ -88,6 +88,7 @@ export async function PATCH(req: NextRequest) {
       company:      '',
       email:        `manual-${Date.now()}@session.local`,
       phone_number: '',
+      game_result:  null, // session will resolve this
     })
     .select('id, name, designation, company, created_at')
     .single()
@@ -103,10 +104,30 @@ export async function PUT(req: NextRequest) {
 
   // ── End without picking a winner ──────────────────────────────────────────
   if (end) {
+    // Mark all unresolved session participants as lost
+    if (eventId && sessionId) {
+      // Get session start time so we only touch session participants
+      const { data: sess } = await supabase
+        .from('sessions')
+        .select('started_at')
+        .eq('id', sessionId)
+        .single()
+
+      if (sess) {
+        await supabase
+          .from('registrations')
+          .update({ game_result: 'lost' })
+          .eq('event_id', eventId)
+          .gte('created_at', sess.started_at)
+          .is('game_result', null)
+      }
+    }
+
     await supabase
       .from('sessions')
       .update({ is_active: false, ended_at: new Date().toISOString() })
       .eq('id', sessionId)
+
     return NextResponse.json({ ok: true })
   }
 
@@ -153,7 +174,7 @@ export async function PUT(req: NextRequest) {
     })
     .eq('id', sessionId)
 
-  // ── Overwrite winner's registration with grand prize details ──────────────
+  // ── Mark winner with grand prize ──────────────────────────────────────────
   await supabase
     .from('registrations')
     .update({
@@ -167,16 +188,16 @@ export async function PUT(req: NextRequest) {
     })
     .eq('id', winnerId)
 
-  // ── Mark all non-winners as lost (only if not already resolved) ───────────
+  // ── Mark ALL non-winners as lost — remove the null guard so session
+  //    participants who got game_result from the spin wheel are also overwritten
   const loserIds: string[] = (allParticipantIds ?? []).filter(
     (pid: string) => pid !== winnerId
   )
   if (loserIds.length > 0) {
     await supabase
       .from('registrations')
-      .update({ game_result: 'lost' })
+      .update({ game_result: 'lost', prize_name: 'Better Luck Next Time', prize_rank_won: null })
       .in('id', loserIds)
-      .is('game_result', null)
   }
 
   return NextResponse.json({ ok: true, prizeName })
