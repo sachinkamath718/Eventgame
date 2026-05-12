@@ -8,7 +8,14 @@ interface LuckyEvent {
   name: string
   slug: string
   game_type: string
-  form_fields: unknown[]
+  is_active?: boolean      // ← add this too
+  form_fields: Array<{     // ← match EventClient's FormField shape
+    formLabel: string
+    fieldKey: string
+    required: boolean
+    fieldType: string
+    options: string
+  }>
   ui_config: Record<string, string>
   prizes?: Array<{
     id: string; rank: number; name: string; description?: string
@@ -18,7 +25,6 @@ interface LuckyEvent {
   linkedin_company_url?: string
   linkedin_share_text?: string
 }
-
 export default function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const [event, setEvent] = useState<LuckyEvent | null>(null)
