@@ -296,97 +296,129 @@ export default function NewEventPage() {
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
 
-          {/* ── TAB 0: Form Fields ── */}
-          {tab === 0 && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
-                  Fields shown in the participant registration form. Core fields (🔒) cannot be removed.
-                </p>
-                <button onClick={addField} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: '1rem' }}>
-                  + Add Field
-                </button>
-              </div>
+      {/* TAB: Form Fields */}
+<div>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+    <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
+      Fields shown in the participant registration form. Disabled fields are hidden from new registrations — past data is always kept.
+    </p>
+    <button
+      onClick={() => setFields(fs => [...fs, {
+        formLabel: '', fieldKey: `custom_${Date.now()}`,
+        required: false, fieldType: 'text', options: '', enabled: true,
+      }])}
+      style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+    >+ Add Field</button>
+  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                {['Label', 'Type', 'Maps To', 'Req', ''].map(h => (
-                  <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
-                ))}
-              </div>
+  {/* Column headers */}
+  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto auto auto', gap: '0.5rem', marginBottom: '0.4rem', paddingLeft: '0.25rem' }}>
+    {['Label', 'Type', 'Maps To', 'Required', 'Show', ''].map(h => (
+      <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
+    ))}
+  </div>
 
-              {fields.map((field, i) => {
-                const isCore = CORE_FIELD_KEYS.includes(field.fieldKey)
-                return (
-                  <div key={field.fieldKey} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                    <input
-                      style={{ ...F, padding: '0.5rem 0.7rem', opacity: isCore ? 0.65 : 1 }}
-                      value={field.formLabel}
-                      placeholder="Label"
-                      readOnly={isCore}
-                      onChange={e => !isCore && updateField(i, { formLabel: e.target.value })}
-                    />
-                    <select
-                      style={{ ...F, padding: '0.5rem', appearance: 'none', opacity: isCore ? 0.65 : 1 }}
-                      value={field.fieldType}
-                      disabled={isCore}
-                      onChange={e => updateField(i, { fieldType: e.target.value })}
-                    >
-                      {['text', 'email', 'tel', 'number', 'select'].map(t => (
-                        <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>
-                      ))}
-                    </select>
-                    <div style={{
-                      ...F, padding: '0.5rem 0.4rem', fontSize: '0.78rem',
-                      opacity: 0.65, display: 'flex', alignItems: 'center',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {field.fieldKey}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={field.required}
-                        disabled={isCore && field.required}
-                        onChange={e => updateField(i, { required: e.target.checked })}
-                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
-                      />
-                    </div>
-                    {isCore ? (
-                      <div style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.45rem', color: 'rgba(248,250,252,0.2)', fontSize: '0.8rem', textAlign: 'center', cursor: 'not-allowed' }}>
-                        🔒
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => removeField(i)}
-                        style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >✕</button>
-                    )}
-                  </div>
-                )
-              })}
+  {fields.map((field, i) => {
+    const isEnabled = field.enabled !== false
+    return (
+      <div key={i} style={{
+        display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto auto auto',
+        gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center',
+        opacity: isEnabled ? 1 : 0.45, transition: 'opacity 0.2s',
+      }}>
+        {/* Label */}
+        <input
+          style={{ ...F, padding: '0.5rem 0.7rem' }}
+          value={field.formLabel}
+          placeholder="Label"
+          onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, formLabel: e.target.value } : f))}
+        />
 
-              {/* Options editor for select-type custom fields */}
-              {fields.some(f => f.fieldType === 'select' && !CORE_FIELD_KEYS.includes(f.fieldKey)) && (
-                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '0.75rem' }}>
-                  <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', fontWeight: 700, color: '#a78bfa' }}>Dropdown Options</p>
-                  {fields.map((f, i) =>
-                    f.fieldType === 'select' && !CORE_FIELD_KEYS.includes(f.fieldKey) ? (
-                      <div key={f.fieldKey} style={{ marginBottom: '0.5rem' }}>
-                        <label style={{ ...L, color: 'rgba(248,250,252,0.4)' }}>{f.formLabel || `Field ${i + 1}`}</label>
-                        <input
-                          style={{ ...F, padding: '0.5rem 0.7rem', fontSize: '0.82rem' }}
-                          value={f.options}
-                          placeholder="Option A, Option B, Option C"
-                          onChange={e => updateField(i, { options: e.target.value })}
-                        />
-                        <span style={{ fontSize: '0.7rem', color: 'rgba(248,250,252,0.25)', display: 'block', marginTop: '0.25rem' }}>Comma-separated values</span>
-                      </div>
-                    ) : null
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        {/* Type */}
+        <select
+          style={{ ...F, padding: '0.5rem', appearance: 'none' }}
+          value={field.fieldType}
+          onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldType: e.target.value } : f))}
+        >
+          {['text', 'email', 'tel', 'number', 'select'].map(t => (
+            <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>
+          ))}
+        </select>
+
+        {/* Maps To */}
+        <select
+          style={{ ...F, padding: '0.5rem', appearance: 'none', fontSize: '0.78rem' }}
+          value={field.fieldKey}
+          onChange={e => setFields(fs => fs.map((f, j) => j === i ? { ...f, fieldKey: e.target.value } : f))}
+        >
+          {['name', 'email', 'phone_number', 'company', 'designation', 'custom'].map(k => (
+            <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>
+          ))}
+        </select>
+
+        {/* Required toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+          <button
+            type="button"
+            title={field.required ? 'Required — click to make optional' : 'Optional — click to make required'}
+            onClick={() => setFields(fs => fs.map((f, j) => j === i ? { ...f, required: !f.required } : f))}
+            style={{
+              width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: field.required ? '#7c3aed' : 'rgba(255,255,255,0.12)',
+              position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 3,
+              left: field.required ? 22 : 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff', transition: 'left 0.2s', display: 'block',
+            }} />
+          </button>
+          <span style={{ fontSize: '0.6rem', color: 'rgba(248,250,252,0.3)', whiteSpace: 'nowrap' }}>
+            {field.required ? 'Required' : 'Optional'}
+          </span>
+        </div>
+
+        {/* Show/hide toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+          <button
+            type="button"
+            title={isEnabled ? 'Shown — click to hide from form' : 'Hidden — click to show on form'}
+            onClick={() => setFields(fs => fs.map((f, j) => j === i ? { ...f, enabled: !isEnabled } : f))}
+            style={{
+              width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: isEnabled ? '#059669' : 'rgba(255,255,255,0.12)',
+              position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 3,
+              left: isEnabled ? 22 : 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff', transition: 'left 0.2s', display: 'block',
+            }} />
+          </button>
+          <span style={{ fontSize: '0.6rem', color: 'rgba(248,250,252,0.3)', whiteSpace: 'nowrap' }}>
+            {isEnabled ? 'Shown' : 'Hidden'}
+          </span>
+        </div>
+
+        {/* Remove */}
+        <button
+          onClick={() => setFields(fs => fs.filter((_, j) => j !== i))}
+          title="Remove field from this event"
+          style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
+        >✕</button>
+      </div>
+    )
+  })}
+
+  <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)', lineHeight: 1.5 }}>
+    <strong style={{ color: 'rgba(248,250,252,0.45)' }}>Show toggle</strong> — hides field from new registrations, all past data kept.{' '}
+    <strong style={{ color: 'rgba(248,113,113,0.45)' }}>✕</strong> — removes from config only, past data always safe.
+  </p>
+</div>
 
           {/* ── TAB 1: Design ── */}
           {tab === 1 && (
