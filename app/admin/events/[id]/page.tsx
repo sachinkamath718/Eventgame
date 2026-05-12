@@ -10,7 +10,7 @@ const GAMES = [
   { id: 'anime_match',  label: '🐉 Anime Match',  desc: 'Memory card pair game' },
 ]
 
-type FieldMapping = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options?: string }
+type FieldMapping = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options?: string; enabled?: boolean }
 type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
 type Prize = {
   rank: number; name: string; description: string; image_url: string
