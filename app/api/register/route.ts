@@ -21,35 +21,24 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    // ── Read values using the event's form_fields config ─────────────────────
-    // Only consider fields that are enabled (or have no enabled flag = legacy)
-    const configFields: Array<{
-      fieldKey: string; fieldType: string; required: boolean; enabled?: boolean
-    }> = (event.form_fields || []).filter(
-      (f: { enabled?: boolean }) => f.enabled !== false
-    )
+    // FIX: event locked (is_active=false) during a live session — block new registrations
+    if (event.is_active === false) {
+      return NextResponse.json(
+        { error: 'Registrations are paused during the live grand prize draw. Please try again shortly.' },
+        { status: 423 }
+      )
+    }
 
-    const getValue = (key: string): string =>
-      (form_data[key] ?? '').toString().trim()
+    // form_data is keyed by fieldKey — read directly
+    const get = (key: string): string => (form_data[key] || '').toString().trim()
 
-    // Core fields — needed for DB columns + prize logic
-    const name        = getValue('name')         || 'Unknown'
-    const email       = getValue('email').toLowerCase().trim()
-    const designation = getValue('designation')  || 'Unknown'
-    const phone       = getValue('phone_number') || ''
-    const company     = getValue('company')      || ''
+    const name        = get('name')        || 'Unknown'
+    const email       = get('email').toLowerCase()
+    const designation = get('designation') || 'Unknown'
+    const phone       = get('phone_number')
+    const company     = get('company')
 
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
-
-    // ── Validate required fields from config ──────────────────────────────────
-    for (const field of configFields) {
-      if (field.required && !getValue(field.fieldKey)) {
-        return NextResponse.json(
-          { error: `${field.fieldKey} is required` },
-          { status: 400 }
-        )
-      }
-    }
 
     // ── Duplicate check ───────────────────────────────────────────────────────
     const { data: existing } = await supabase
@@ -72,7 +61,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Session check ─────────────────────────────────────────────────────────
+    // ── Session check — is a grand prize session active? ──────────────────────
     const { data: activeSession } = await supabase
       .from('sessions')
       .select('id')
@@ -84,11 +73,14 @@ export async function POST(req: NextRequest) {
     const sessionActive = !!activeSession
     const allPrizes     = event.prizes || []
 
-    const eligiblePrizes = sessionActive
-      ? allPrizes
-      : allPrizes.filter((p: { is_grand_prize: boolean }) => !p.is_grand_prize)
+    // During a live session, grand prize is excluded from spin wheel — it's awarded manually
+    // When no session, grand prize is also excluded (only awarded via session page)
+    // FIX: always exclude grand prizes from the automated assignPrize path
+    const eligiblePrizes = allPrizes.filter(
+      (p: { is_grand_prize?: boolean }) => !p.is_grand_prize
+    )
 
-    // ── Count claimed prizes ──────────────────────────────────────────────────
+    // ── Quantity: count how many times each prize has already been won ────────
     const prizeIds = eligiblePrizes
       .filter((p: { is_consolation?: boolean; quantity?: number }) =>
         !p.is_consolation && p.quantity != null
@@ -127,8 +119,6 @@ export async function POST(req: NextRequest) {
     )
 
     // ── Save registration ─────────────────────────────────────────────────────
-    // form_data JSONB stores ALL submitted values (including custom fields)
-    // so no past data is ever lost even if fields are later disabled
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
       .insert({
@@ -136,9 +126,9 @@ export async function POST(req: NextRequest) {
         name,
         email,
         designation,
-        phone_number: phone,
+        phone_number:      phone,
         company,
-        form_data,                              // full submission always saved
+        form_data,
         prize_rank_won:    prize?.rank        ?? null,
         prize_id:          prize?.id          ?? null,
         prize_name:        prize?.name        ?? null,
