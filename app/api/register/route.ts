@@ -53,14 +53,64 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Always exclude grand prizes from spin wheel path ──────────────────────
-    // Grand prizes are awarded manually via the session page only
-    const allPrizes     = event.prizes || []
+    // ── Check if a grand prize session is currently active ────────────────────
+    // If yes, register the participant but defer prize assignment entirely —
+    // the session PUT will assign won/lost to everyone when the winner is picked.
+    const { data: activeSession } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('event_id', event_id)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    const isGrandPrizeSession = !!activeSession
+
+    if (isGrandPrizeSession) {
+      // Insert with no prize info and no game_result — session will resolve this
+      const { data: reg, error: regErr } = await supabase
+        .from('registrations')
+        .insert({
+          event_id,
+          name,
+          email,
+          designation,
+          phone_number: phone,
+          company,
+          form_data,
+          // intentionally null — session resolves these
+          prize_rank_won:    null,
+          prize_id:          null,
+          prize_name:        null,
+          prize_description: null,
+          prize_image_url:   null,
+          game_result:       null,
+        })
+        .select()
+        .single()
+
+      if (regErr) return NextResponse.json({ error: regErr.message }, { status: 500 })
+
+      return NextResponse.json({
+        registrationId:   reg.id,
+        prizeName:        'Grand Prize Draw',
+        prizeRank:        0,
+        prizeImageUrl:    undefined,
+        prizeDescription: undefined,
+        won:              false,
+        name:             reg.name,
+        isGrandPrizeSession: true,
+      })
+    }
+
+    // ── Normal path: assign prize immediately ─────────────────────────────────
+
+    // Always exclude grand prizes from spin wheel path
+    const allPrizes      = event.prizes || []
     const eligiblePrizes = allPrizes.filter(
       (p: { is_grand_prize?: boolean }) => !p.is_grand_prize
     )
 
-    // ── Count claimed prizes for stock check ──────────────────────────────────
+    // Count claimed prizes for stock check
     const prizeIds = eligiblePrizes
       .filter((p: { is_consolation?: boolean; quantity?: number }) =>
         !p.is_consolation && p.quantity != null
@@ -91,14 +141,14 @@ export async function POST(req: NextRequest) {
       })
     )
 
-    // ── Assign prize ──────────────────────────────────────────────────────────
+    // Assign prize
     const { prize, won } = assignPrize(
       designation,
       event.designation_rules || [],
       prizesWithStock,
     )
 
-    // ── Save registration ─────────────────────────────────────────────────────
+    // Save registration
     const { data: reg, error: regErr } = await supabase
       .from('registrations')
       .insert({
