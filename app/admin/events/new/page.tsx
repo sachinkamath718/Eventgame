@@ -297,6 +297,7 @@ export default function NewEventPage() {
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
 
       {/* TAB: Form Fields */}
+{tab === 0 && (         
 <div>
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
     <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
@@ -419,6 +420,7 @@ export default function NewEventPage() {
     <strong style={{ color: 'rgba(248,113,113,0.45)' }}>✕</strong> — removes from config only, past data always safe.
   </p>
 </div>
+  }
 
           {/* ── TAB 1: Design ── */}
           {tab === 1 && (
