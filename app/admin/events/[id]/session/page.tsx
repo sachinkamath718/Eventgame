@@ -110,27 +110,27 @@ export default function AdminSessionPage() {
   }
 
   // Pick winner — everyone else gets "lost" in realtime, event stays locked
-  async function confirmPick() {
-    if (!session || !confirm) return
-    const p = confirm
-    setConfirm(null)
-    setPicking(true)
-    try {
-      await fetch('/api/session', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId:         session.id,
-          eventId:           id,
-          winnerId:          p.id,
-          grandPrizeName:    grandPrizeName.trim() || 'Grand Prize',
-          allParticipantIds: participants.map(x => x.id),
-        }),
-      })
-      setWinner(p)
-      setSession(s => s ? { ...s, is_active: false, winner_registration_id: p.id } : s)
-    } finally { setPicking(false) }
-  }
+ async function confirmPick() {
+  if (!session || !confirm) return
+  const p = confirm
+  setConfirm(null)
+  setPicking(true)
+  try {
+    await fetch('/api/session', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId:         session.id,
+        winnerId:          p.id,
+        grandPrizeName:    grandPrizeName.trim() || 'Grand Prize',
+        allParticipantIds: participants.map(x => x.id),
+        eventId:           id,   // ← THIS was the root cause — was missing before
+      }),
+    })
+    setWinner(p)
+    setSession(s => s ? { ...s, is_active: false, winner_registration_id: p.id } : s)
+  } finally { setPicking(false) }
+}
 
   // End session without winner — API re-opens the event
   async function endSession() {
