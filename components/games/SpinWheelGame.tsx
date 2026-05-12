@@ -24,7 +24,6 @@ const SEG_COLORS = [
   '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
 ]
 
-// Normalise any angle into [0, 2π)
 function norm(r: number): number {
   return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
 }
@@ -35,12 +34,12 @@ export default function SpinWheelGame({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
   const [done, setDone]         = useState(false)
-  const spinRef = useRef(0)          // current rotation in radians (kept normalised)
-  const rafRef  = useRef<number>(0)
-  const loopRef = useRef(false)
+  const spinRef  = useRef(0)
+  const rafRef   = useRef<number>(0)
+  const loopRef  = useRef(false)
   const supabase = createClient()
 
-  // Segments: exclude grand prizes, max 8
+  // Grand prizes are excluded from the wheel — they're awarded via session only
   const wheelPrizes = prizes.filter(p => !p.is_grand_prize).slice(0, 8)
   const segCount    = Math.max(wheelPrizes.length, 1)
   const segAngle    = (2 * Math.PI) / segCount
@@ -50,14 +49,9 @@ export default function SpinWheelGame({
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    const W   = canvas.width
-    const cx  = W / 2
-    const cy  = W / 2
-    const r   = cx - 12
+    const W = canvas.width, cx = W / 2, cy = W / 2, r = cx - 12
 
     ctx.clearRect(0, 0, W, W)
-
-    // Outer glow ring
     ctx.beginPath()
     ctx.arc(cx, cy, r + 10, 0, 2 * Math.PI)
     ctx.fillStyle = 'rgba(255,255,255,0.04)'
@@ -79,7 +73,6 @@ export default function SpinWheelGame({
       ctx.lineWidth = 1.5
       ctx.stroke()
 
-      // Label
       ctx.save()
       ctx.translate(cx, cy)
       ctx.rotate(start + segAngle / 2)
@@ -94,7 +87,6 @@ export default function SpinWheelGame({
       ctx.restore()
     }
 
-    // Centre hub
     ctx.beginPath()
     ctx.arc(cx, cy, 26, 0, 2 * Math.PI)
     const hub = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26)
@@ -107,29 +99,29 @@ export default function SpinWheelGame({
     ctx.stroke()
   }
 
-  // ─── Redraw whenever prizes change (handles async prize load) ─────────────
-  useEffect(() => {
-    drawWheel(spinRef.current)
-  }, [wheelPrizes.length]) // eslint-disable-line
+  useEffect(() => { drawWheel(spinRef.current) }, [wheelPrizes.length]) // eslint-disable-line
 
   // ─── Target index ──────────────────────────────────────────────────────────
+  // Returns the wheel segment index to land on.
+  // Returns -1 if the prize isn't on the wheel (e.g. grand prize) → caller skips animation.
   function getTargetIdx(isWon: boolean, rank: number): number {
     if (!isWon) {
+      // Land on consolation segment
       const idx = wheelPrizes.findIndex(p => p.is_consolation)
       return idx >= 0 ? idx : segCount - 1
     }
+    // Find the prize by rank on the wheel
     const idx = wheelPrizes.findIndex(p => p.rank === rank)
-    return idx >= 0 ? idx : 0
+    return idx  // -1 if not found (grand prize case)
   }
 
-  // ─── Infinite loop for session waiting ────────────────────────────────────
+  // ─── Infinite loop ─────────────────────────────────────────────────────────
   function startLoop() {
     loopRef.current = true
     let start: number | null = null
     function loop(ts: number) {
       if (!loopRef.current) return
       if (!start) start = ts
-      // Keep rotation normalised so spinRef never grows unboundedly
       const rot = norm((ts - start) * 0.002)
       spinRef.current = rot
       drawWheel(rot)
@@ -147,40 +139,34 @@ export default function SpinWheelGame({
   function spinToTarget(isWon: boolean, rank: number) {
     const idx = getTargetIdx(isWon, rank)
 
-    // The pointer is at 12 o'clock = -π/2 in canvas coordinates.
-    // Segment i's centre sits at: rot + i·segAngle + segAngle/2
-    // We need that to equal -π/2 (mod 2π), so:
-    //   rot = -π/2 - i·segAngle - segAngle/2
-    const exactTarget = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
-    const targetNorm_ = norm(exactTarget)
+    // Prize not on wheel (grand prize) — skip animation, go straight to result
+    if (idx < 0) {
+      setSpinning(false)
+      setDone(true)
+      setTimeout(() => onDone(), 400)
+      return
+    }
 
-    // How far to travel clockwise from current normalised position
+    const exactTarget  = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
+    const targetNorm_  = norm(exactTarget)
     const currentNorm_ = norm(spinRef.current)
-    const delta = (targetNorm_ - currentNorm_ + 2 * Math.PI) % (2 * Math.PI)
+    const delta        = (targetNorm_ - currentNorm_ + 2 * Math.PI) % (2 * Math.PI)
+    const totalTravel  = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI + delta
 
-    // At least 5 full spins for drama, plus the natural delta
-    const totalTravel = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI + delta
-
-    // Work entirely in a local frame starting at 0 so no float-precision issues
-    const startRot  = 0
+    const absStart  = spinRef.current
     const startTime = performance.now()
     const duration  = 4500
-    // Save the absolute start so we can offset during animation
-    const absStart  = spinRef.current
 
     function animate(now: number) {
       const t     = Math.min((now - startTime) / duration, 1)
-      const eased = 1 - Math.pow(1 - t, 4)       // ease-out quart
-      const local = totalTravel * eased
-      // Keep spinRef normalised throughout
-      const cur   = norm(absStart + local)
+      const eased = 1 - Math.pow(1 - t, 4)
+      const cur   = norm(absStart + totalTravel * eased)
       spinRef.current = cur
       drawWheel(cur)
 
       if (t < 1) {
         rafRef.current = requestAnimationFrame(animate)
       } else {
-        // Snap exactly to the correct normalised angle
         spinRef.current = norm(absStart + totalTravel)
         drawWheel(spinRef.current)
         setSpinning(false)
@@ -192,14 +178,14 @@ export default function SpinWheelGame({
     rafRef.current = requestAnimationFrame(animate)
   }
 
-  // ─── Non-session spin trigger ──────────────────────────────────────────────
+  // ─── Regular spin (non-session) ────────────────────────────────────────────
   function spin() {
     if (spinning || done || sessionMode) return
     setSpinning(true)
     spinToTarget(won, targetRank)
   }
 
-  // ─── Session mode: subscribe + auto-spin on result ────────────────────────
+  // ─── Session mode: wait for realtime update ────────────────────────────────
   useEffect(() => {
     if (!sessionMode || !registrationId) return
     setSpinning(true)
@@ -222,7 +208,6 @@ export default function SpinWheelGame({
     return () => { stopLoop(); supabase.removeChannel(ch) }
   }, [sessionMode, registrationId]) // eslint-disable-line
 
-  // Cleanup on unmount
   useEffect(() => () => {
     loopRef.current = false
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -244,53 +229,35 @@ export default function SpinWheelGame({
         </div>
       )}
 
-      {/* Wheel + pointer */}
       <div style={{ position: 'relative', display: 'inline-block' }}>
-        {/* Top pointer — fixed at 12 o'clock */}
         <div style={{
-          position: 'absolute',
-          top: -10,
-          left: '50%',
+          position: 'absolute', top: -10, left: '50%',
           transform: 'translateX(-50%)',
           width: 0, height: 0,
-          borderLeft:  '9px solid transparent',
-          borderRight: '9px solid transparent',
-          borderTop:   '22px solid #f59e0b',
+          borderLeft: '9px solid transparent', borderRight: '9px solid transparent',
+          borderTop: '22px solid #f59e0b',
           filter: 'drop-shadow(0 2px 6px rgba(245,158,11,0.7))',
           zIndex: 10,
         }} />
         <canvas
-          ref={canvasRef}
-          width={320}
-          height={320}
-          style={{
-            borderRadius: '50%', display: 'block',
-            cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default',
-          }}
+          ref={canvasRef} width={320} height={320}
+          style={{ borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default' }}
           onClick={spin}
         />
       </div>
 
       {!sessionMode && !spinning && !done && (
-        <button
-          onClick={spin}
-          style={{
-            padding: '0.875rem 2.5rem',
-            background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
-            border: 'none', borderRadius: '0.875rem',
-            color: '#fff', fontWeight: 700, fontSize: '1rem',
-            cursor: 'pointer',
-            boxShadow: '0 0 20px rgba(124,58,237,0.4)',
-          }}
-        >
-          Spin
-        </button>
+        <button onClick={spin} style={{
+          padding: '0.875rem 2.5rem',
+          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+          border: 'none', borderRadius: '0.875rem',
+          color: '#fff', fontWeight: 700, fontSize: '1rem', cursor: 'pointer',
+          boxShadow: '0 0 20px rgba(124,58,237,0.4)',
+        }}>Spin</button>
       )}
 
       {!sessionMode && spinning && (
-        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>
-          Spinning…
-        </div>
+        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>Spinning…</div>
       )}
 
       {sessionMode && !done && (
