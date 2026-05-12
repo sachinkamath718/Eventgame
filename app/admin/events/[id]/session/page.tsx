@@ -27,6 +27,8 @@ export default function AdminSessionPage() {
   const [search, setSearch]                 = useState('')
   const [grandPrizeName, setGrandPrizeName] = useState('Grand Prize')
   const [confirm, setConfirm]               = useState<Participant | null>(null)
+  const [manualName, setManualName]         = useState('')
+  const [addingManual, setAddingManual]     = useState(false)
 
   const supabase   = createClient()
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -92,11 +94,12 @@ export default function AdminSessionPage() {
     return () => { supabase.removeChannel(ch) }
   }, [session?.id, session?.is_active, id, supabase])
 
-  // Start session — API locks the event automatically
+  // Start session
   async function startSession() {
     setStarting(true)
     setWinner(null)
     setSearch('')
+    setManualName('')
     try {
       const res  = await fetch('/api/session', {
         method: 'POST',
@@ -109,30 +112,51 @@ export default function AdminSessionPage() {
     } finally { setStarting(false) }
   }
 
-  // Pick winner — everyone else gets "lost" in realtime, event stays locked
- async function confirmPick() {
-  if (!session || !confirm) return
-  const p = confirm
-  setConfirm(null)
-  setPicking(true)
-  try {
-    await fetch('/api/session', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId:         session.id,
-        winnerId:          p.id,
-        grandPrizeName:    grandPrizeName.trim() || 'Grand Prize',
-        allParticipantIds: participants.map(x => x.id),
-        eventId:           id,   // ← THIS was the root cause — was missing before
-      }),
-    })
-    setWinner(p)
-    setSession(s => s ? { ...s, is_active: false, winner_registration_id: p.id } : s)
-  } finally { setPicking(false) }
-}
+  // Manually add a participant during a live session
+  async function addManualParticipant() {
+    const name = manualName.trim()
+    if (!name || !session) return
+    setAddingManual(true)
+    try {
+      const res  = await fetch('/api/session', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ eventId: id, name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.participant) {
+        setParticipants(prev =>
+          prev.find(p => p.id === data.participant.id) ? prev : [data.participant, ...prev]
+        )
+        setManualName('')
+      }
+    } finally { setAddingManual(false) }
+  }
 
-  // End session without winner — API re-opens the event
+  // Pick winner
+  async function confirmPick() {
+    if (!session || !confirm) return
+    const p = confirm
+    setConfirm(null)
+    setPicking(true)
+    try {
+      await fetch('/api/session', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId:         session.id,
+          winnerId:          p.id,
+          grandPrizeName:    grandPrizeName.trim() || 'Grand Prize',
+          allParticipantIds: participants.map(x => x.id),
+          eventId:           id,
+        }),
+      })
+      setWinner(p)
+      setSession(s => s ? { ...s, is_active: false, winner_registration_id: p.id } : s)
+    } finally { setPicking(false) }
+  }
+
+  // End session without winner
   async function endSession() {
     if (!session) return
     setEnding(true)
@@ -247,7 +271,6 @@ export default function AdminSessionPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {session?.is_active && (
             <>
-              {/* Lock badge */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '0.4rem',
                 padding: '0.35rem 0.75rem',
@@ -394,6 +417,49 @@ export default function AdminSessionPage() {
             </div>
 
             <div style={card}>
+              {/* Manual participant entry */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{
+                  display: 'block', fontSize: '0.72rem', fontWeight: 600,
+                  color: 'rgba(248,250,252,0.4)', marginBottom: '0.5rem', letterSpacing: '0.05em',
+                }}>ADD PARTICIPANT MANUALLY</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    value={manualName}
+                    onChange={e => setManualName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addManualParticipant() }}
+                    placeholder="Type name and press Enter…"
+                    style={{
+                      flex: 1, padding: '0.65rem 1rem',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      borderRadius: '0.65rem', color: '#f8fafc',
+                      fontSize: '0.875rem', outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={addManualParticipant}
+                    disabled={addingManual || !manualName.trim()}
+                    style={{
+                      padding: '0.65rem 1.1rem',
+                      background: manualName.trim()
+                        ? 'linear-gradient(135deg,#7c3aed,#4f46e5)'
+                        : 'rgba(124,58,237,0.2)',
+                      border: 'none', borderRadius: '0.65rem',
+                      color: '#fff', fontWeight: 700,
+                      cursor: manualName.trim() ? 'pointer' : 'not-allowed',
+                      fontSize: '0.875rem', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {addingManual ? '…' : '+ Add'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{
+                height: '1px', background: 'rgba(255,255,255,0.07)', margin: '0 0 1rem',
+              }} />
+
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 marginBottom: '1rem', gap: '0.75rem', flexWrap: 'wrap' as const,
