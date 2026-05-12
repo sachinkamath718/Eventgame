@@ -6,7 +6,11 @@ import { createClient } from '@/lib/supabase/client'
 interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
 interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: () => void; sessionMode?: boolean; registrationId?: string }
 
-const SEG_COLORS = ['#7c3aed','#1d4ed8','#0891b2','#0f766e','#b45309','#be185d','#15803d','#6d28d9']
+// Same color palette as the grand prize session wheel
+const SEG_COLORS = [
+  '#7c3aed', '#4338ca', '#0891b2', '#0f766e',
+  '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
+]
 
 function norm(r: number): number { return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }
 
@@ -14,108 +18,89 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
   const [done, setDone] = useState(false)
-  const [showWin, setShowWin] = useState(false)
-  const [btnPulse, setBtnPulse] = useState(false)
   const spinRef = useRef(0)
   const rafRef = useRef<number>(0)
   const loopRef = useRef(false)
   const supabase = createClient()
 
+  // Filter out grand prize (rank 1) — only normal prizes on the wheel
   const wheelPrizes = prizes.filter(p => !p.is_grand_prize && p.rank !== 1).slice(0, 8)
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
 
+  // ── Drawing — identical style to grand prize session wheel ────────────────
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    const W = canvas.width, cx = W / 2, cy = W / 2, r = cx - 18
+    const W = canvas.width, cx = W / 2, cy = W / 2, r = cx - 12
     ctx.clearRect(0, 0, W, W)
 
     // Outer glow ring
-    ctx.save()
-    ctx.shadowColor = spinning ? '#a855f7' : '#7c3aed'
-    ctx.shadowBlur = spinning ? 32 : 14
     ctx.beginPath()
-    ctx.arc(cx, cy, r + 8, 0, 2 * Math.PI)
-    ctx.strokeStyle = 'rgba(168,85,247,0.5)'
-    ctx.lineWidth = 3
-    ctx.stroke()
-    ctx.restore()
+    ctx.arc(cx, cy, r + 10, 0, 2 * Math.PI)
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'
+    ctx.fill()
 
-    // Chrome border
-    ctx.beginPath()
-    ctx.arc(cx, cy, r + 5, 0, 2 * Math.PI)
-    const chrome = ctx.createLinearGradient(0, 0, W, W)
-    chrome.addColorStop(0, 'rgba(255,255,255,0.35)')
-    chrome.addColorStop(0.5, 'rgba(255,255,255,0.1)')
-    chrome.addColorStop(1, 'rgba(255,255,255,0.3)')
-    ctx.strokeStyle = chrome
-    ctx.lineWidth = 5
-    ctx.stroke()
-
-    if (segCount === 0) return
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
-      const end = start + segAngle
-      const mid = start + segAngle / 2
-      const grad = ctx.createLinearGradient(
-        cx + Math.cos(mid) * 20, cy + Math.sin(mid) * 20,
-        cx + Math.cos(mid) * r, cy + Math.sin(mid) * r
-      )
-      const base = SEG_COLORS[i % SEG_COLORS.length]
-      grad.addColorStop(0, base + 'cc')
-      grad.addColorStop(1, base)
+      const end   = start + segAngle
+
       ctx.beginPath()
       ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, start, end)
       ctx.closePath()
-      ctx.fillStyle = grad
+      ctx.fillStyle = SEG_COLORS[i % SEG_COLORS.length]
       ctx.fill()
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)'
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
       ctx.lineWidth = 1.5
       ctx.stroke()
+
       ctx.save()
       ctx.translate(cx, cy)
-      ctx.rotate(mid)
+      ctx.rotate(start + segAngle / 2)
       ctx.textAlign = 'right'
-      ctx.shadowColor = 'rgba(0,0,0,0.8)'
-      ctx.shadowBlur = 5
-      ctx.fillStyle = '#fff'
-      ctx.font = 'bold 12px Inter,sans-serif'
-      const lbl = wheelPrizes[i]?.name ?? `Prize ${i+1}`
-      ctx.fillText(lbl.length > 13 ? lbl.slice(0,13)+'…' : lbl, r - 14, 4)
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.font = 'bold 11px Inter, sans-serif'
+      const label = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
+      ctx.fillText(label.length > 14 ? label.slice(0, 14) + '…' : label, r - 10, 4)
       ctx.restore()
     }
+
     // Hub
-    ctx.save()
-    ctx.shadowColor = 'rgba(0,0,0,0.9)'
-    ctx.shadowBlur = 20
     ctx.beginPath()
-    ctx.arc(cx, cy, 30, 0, 2 * Math.PI)
-    const hub = ctx.createRadialGradient(cx-6, cy-6, 2, cx, cy, 30)
-    hub.addColorStop(0, '#3b0764')
+    ctx.arc(cx, cy, 26, 0, 2 * Math.PI)
+    const hub = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26)
+    hub.addColorStop(0, '#1e1b4b')
     hub.addColorStop(1, '#0a0a1a')
     ctx.fillStyle = hub
     ctx.fill()
-    ctx.restore()
-    ctx.beginPath()
-    ctx.arc(cx, cy, 30, 0, 2 * Math.PI)
-    ctx.strokeStyle = 'rgba(168,85,247,0.6)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
     ctx.lineWidth = 2
     ctx.stroke()
-    ctx.fillStyle = 'rgba(255,255,255,0.75)'
-    ctx.font = 'bold 9px Inter,sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    ctx.font = 'bold 9px Inter, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('SPIN', cx, cy + 3)
   }
 
   useEffect(() => { drawWheel(spinRef.current) }, [wheelPrizes.length]) // eslint-disable-line
 
+  // ── Target segment calculation ────────────────────────────────────────────
+  // "won" and "targetRank" come from the register API.
+  // We find which segment index corresponds to that prize rank.
+  // If no match (e.g. rank not on wheel), land on consolation.
   function getTargetIdx(isWon: boolean, rank: number): number {
-    if (!isWon) { const idx = wheelPrizes.findIndex(p => p.is_consolation); return idx >= 0 ? idx : segCount - 1 }
+    if (!isWon) {
+      const idx = wheelPrizes.findIndex(p => p.is_consolation)
+      return idx >= 0 ? idx : segCount - 1
+    }
+    // Find the prize with matching rank on the wheel
     const idx = wheelPrizes.findIndex(p => p.rank === rank)
-    return idx >= 0 ? idx : (wheelPrizes.findIndex(p => p.is_consolation) ?? segCount - 1)
+    if (idx >= 0) return idx
+    // Fallback: first non-consolation prize on wheel
+    const fallbackIdx = wheelPrizes.findIndex(p => !p.is_consolation)
+    return fallbackIdx >= 0 ? fallbackIdx : segCount - 1
   }
 
   function startLoop() {
@@ -138,18 +123,22 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     const exactTarget = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
     const delta = (norm(exactTarget) - norm(spinRef.current) + 2 * Math.PI) % (2 * Math.PI)
     const totalTravel = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI + delta
-    const absStart = spinRef.current, startTime = performance.now(), duration = 5000
+    const absStart = spinRef.current
+    const startTime = performance.now()
+    const duration = 4500
+
     function animate(now: number) {
       const t = Math.min((now - startTime) / duration, 1)
-      const eased = t < 0.85 ? 1 - Math.pow(1 - t / 0.85, 4) : 1 + Math.sin(((t-0.85)/0.15) * Math.PI) * 0.01
+      const eased = 1 - Math.pow(1 - t, 4)
       spinRef.current = norm(absStart + totalTravel * eased)
       drawWheel(spinRef.current)
-      if (t < 1) { rafRef.current = requestAnimationFrame(animate) }
-      else {
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(animate)
+      } else {
         drawWheel(norm(absStart + totalTravel))
-        setSpinning(false); setDone(true)
-        if (isWon) setShowWin(true)
-        setTimeout(() => onDone(), 1600)
+        setSpinning(false)
+        setDone(true)
+        setTimeout(() => onDone(), 1400)
       }
     }
     rafRef.current = requestAnimationFrame(animate)
@@ -157,18 +146,21 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
 
   function spin() {
     if (spinning || done || sessionMode) return
-    setBtnPulse(true); setTimeout(() => setBtnPulse(false), 400)
-    setSpinning(true); spinToTarget(won, targetRank)
+    setSpinning(true)
+    spinToTarget(won, targetRank)
   }
 
+  // Session mode: auto-spin, stop on realtime DB update
   useEffect(() => {
     if (!sessionMode || !registrationId) return
-    setSpinning(true); startLoop()
+    setSpinning(true)
+    startLoop()
     const ch = supabase.channel(`spin:${registrationId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'registrations', filter: `id=eq.${registrationId}` },
         (payload) => {
           const u = payload.new as Record<string, unknown>
-          stopLoop(); spinToTarget(u.game_result === 'won', (u.prize_rank_won as number) ?? segCount)
+          stopLoop()
+          spinToTarget(u.game_result === 'won', (u.prize_rank_won as number) ?? segCount)
         })
       .subscribe()
     return () => { stopLoop(); supabase.removeChannel(ch) }
@@ -177,78 +169,44 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   useEffect(() => () => { loopRef.current = false; if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.75rem' }}>
-      {/* Wheel */}
-      <div style={{
-        position: 'relative', display: 'inline-block',
-        filter: spinning ? 'drop-shadow(0 0 28px rgba(168,85,247,0.7))' : 'drop-shadow(0 0 12px rgba(124,58,237,0.3))',
-        transition: 'filter 0.5s',
-      }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+      {/* Wheel — same layout as grand prize session */}
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        {/* Pointer */}
         <div style={{
-          position: 'absolute', top: -2, left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', top: -10, left: '50%',
+          transform: 'translateX(-50%)',
           width: 0, height: 0,
-          borderLeft: '12px solid transparent', borderRight: '12px solid transparent',
-          borderTop: '30px solid #f59e0b',
-          filter: 'drop-shadow(0 3px 10px rgba(245,158,11,1))',
+          borderLeft: '10px solid transparent',
+          borderRight: '10px solid transparent',
+          borderTop: '24px solid #f59e0b',
+          filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.8))',
           zIndex: 10,
         }} />
-        <canvas ref={canvasRef} width={340} height={340}
+        <canvas
+          ref={canvasRef} width={300} height={300}
           style={{ borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default' }}
           onClick={spin}
         />
-        {/* Win burst */}
-        {showWin && (
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {[...Array(12)].map((_, i) => (
-              <div key={i} style={{
-                position: 'absolute', width: 10, height: 10,
-                borderRadius: i % 3 === 0 ? '50%' : '2px',
-                background: ['#fbbf24','#a855f7','#3b82f6','#4ade80'][i % 4],
-                animation: `burst 0.85s ${i * 50}ms ease-out forwards`,
-                '--angle': `${i * 30}deg`,
-              } as React.CSSProperties} />
-            ))}
-          </div>
-        )}
       </div>
 
       {!sessionMode && !spinning && !done && (
         <button onClick={spin} style={{
-          padding: '1rem 3rem', fontSize: '1.15rem', fontWeight: 900, letterSpacing: '0.06em',
-          background: 'linear-gradient(135deg,#7c3aed 0%,#4f46e5 50%,#7c3aed 100%)',
-          backgroundSize: '200% 100%',
-          border: '2px solid rgba(168,85,247,0.6)',
-          borderRadius: '1.25rem', color: '#fff', cursor: 'pointer',
-          boxShadow: '0 0 32px rgba(124,58,237,0.55), 0 4px 20px rgba(0,0,0,0.4)',
-          transform: btnPulse ? 'scale(0.94)' : 'scale(1)',
-          animation: !btnPulse ? 'shimmer 2s infinite' : 'none',
-          transition: 'transform 0.15s, box-shadow 0.2s',
+          padding: '0.875rem 2.5rem',
+          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+          border: 'none', borderRadius: '0.875rem',
+          color: '#fff', fontWeight: 700, fontSize: '1rem', cursor: 'pointer',
+          boxShadow: '0 0 20px rgba(124,58,237,0.4)',
         }}>
-          🎡 SPIN THE WHEEL!
+          Spin
         </button>
       )}
 
       {!sessionMode && spinning && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a855f7', fontWeight: 700, fontSize: '1rem' }}>
-          <span style={{ display: 'inline-block', animation: 'spin360 0.5s linear infinite' }}>⭐</span>
+        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>
           Spinning…
-          <span style={{ display: 'inline-block', animation: 'spin360 0.5s linear infinite reverse' }}>⭐</span>
         </div>
       )}
-
-      <style>{`
-        @keyframes burst {
-          0%   { transform: rotate(var(--angle)) translateY(0) scale(1); opacity:1; }
-          100% { transform: rotate(var(--angle)) translateY(-110px) scale(0.3); opacity:0; }
-        }
-        @keyframes shimmer {
-          0%,100% { background-position:0% 50%; }
-          50%      { background-position:100% 50%; }
-        }
-        @keyframes spin360 {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }
