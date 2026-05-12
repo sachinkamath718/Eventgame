@@ -3,32 +3,45 @@
 import { useState } from 'react'
 
 interface FormField {
-  formLabel:  string
-  fieldKey:   string
-  fieldType:  string
-  required:   boolean
-  enabled:    boolean
-  options?:   string
-  placeholder?: string
+  formLabel: string
+  fieldKey: string
+  required: boolean
+  fieldType: string
+  options: string
 }
 
 interface LuckyEvent {
   id: string
   form_fields?: FormField[]
-  ui_config?: { accentColor?: string }
+  ui_config?: {
+    heading?: string
+    subheading?: string
+    accentColor?: string
+  }
+  prizes?: Array<{
+    id: string; rank: number; name: string
+    description?: string; image_url?: string
+    is_consolation: boolean; is_grand_prize: boolean
+  }>
+  designation_rules?: Array<{
+    designations: string[]; prize_rank: number; win_probability: number
+  }>
 }
 
+interface Props { event: LuckyEvent }
+
 interface RegResult {
-  registrationId:   string
-  prizeName:        string
-  prizeRank:        number
-  prizeImageUrl?:   string
+  registrationId: string
+  prizeName: string
+  prizeRank: number
+  prizeImageUrl?: string
   prizeDescription?: string
-  won:              boolean
-  name?:            string
+  won: boolean
+  name?: string
   alreadyRegistered?: boolean
 }
 
+// Default DESIGNATIONS for the designation dropdown
 const DESIGNATIONS = [
   'CEO','COO','CFO','CTO','CMO','President','VP','Director',
   'Engineering Manager','Senior Engineer','Tech Lead','Architect','Manager',
@@ -36,26 +49,33 @@ const DESIGNATIONS = [
   'Student','Intern','Fresher','Trainee','Graduate','Other',
 ]
 
+// Fallback fields if event.form_fields is empty
 const DEFAULT_FIELDS: FormField[] = [
-  { formLabel: 'Full Name',    fieldKey: 'name',         fieldType: 'text',  required: true,  enabled: true },
-  { formLabel: 'Work Email',   fieldKey: 'email',        fieldType: 'email', required: true,  enabled: true },
-  { formLabel: 'Designation',  fieldKey: 'designation',  fieldType: 'select',required: true,  enabled: true },
-  { formLabel: 'Phone Number', fieldKey: 'phone_number', fieldType: 'tel',   required: true,  enabled: true },
-  { formLabel: 'Company',      fieldKey: 'company',      fieldType: 'text',  required: false, enabled: true },
+  { formLabel: 'Full Name',    fieldKey: 'name',         required: true,  fieldType: 'text',  options: '' },
+  { formLabel: 'Work Email',   fieldKey: 'email',        required: true,  fieldType: 'email', options: '' },
+  { formLabel: 'Phone Number', fieldKey: 'phone_number', required: true,  fieldType: 'tel',   options: '' },
+  { formLabel: 'Company',      fieldKey: 'company',      required: false, fieldType: 'text',  options: '' },
+  { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'text',  options: '' },
 ]
 
-export default function RegisterForm({ event }: { event: LuckyEvent }) {
-  const fields = (event.form_fields ?? DEFAULT_FIELDS).filter(f => f.enabled !== false)
+export default function RegisterForm({ event }: Props) {
+  // FIX: use event.form_fields — only render what admin saved, respecting additions/removals
+  const fields: FormField[] =
+    event.form_fields && event.form_fields.length > 0
+      ? event.form_fields
+      : DEFAULT_FIELDS
 
-  const initialForm = Object.fromEntries(fields.map(f => [f.fieldKey, '']))
-  const [form, setForm]       = useState<Record<string, string>>(initialForm)
+  // Build form state dynamically from field keys
+  const [form, setForm] = useState<Record<string, string>>(
+    () => Object.fromEntries(fields.map(f => [f.fieldKey, '']))
+  )
   const [errors, setErrors]   = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [result, setResult]   = useState<RegResult | null>(null)
 
   const accentColor = event.ui_config?.accentColor || '#f59e0b'
 
-  function validate() {
+  function validate(): Record<string, string> {
     const e: Record<string, string> = {}
     for (const field of fields) {
       const val = (form[field.fieldKey] || '').trim()
@@ -63,10 +83,11 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
         e[field.fieldKey] = `${field.formLabel} is required`
         continue
       }
-      if (field.fieldKey === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+      if (!val) continue
+      if (field.fieldType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
         e[field.fieldKey] = 'Enter a valid email'
       }
-      if (field.fieldKey === 'phone_number' && val && !/^\+?[\d\s\-]{7,15}$/.test(val)) {
+      if (field.fieldType === 'tel' && !/^\+?[\d\s\-]{7,15}$/.test(val)) {
         e[field.fieldKey] = 'Enter a valid phone number'
       }
     }
@@ -83,13 +104,14 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // FIX: send form keyed by fieldKey — API reads directly by fieldKey
         body: JSON.stringify({ event_id: event.id, form_data: form }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setResult(data)
     } catch (err: unknown) {
-      setErrors({ submit: err instanceof Error ? err.message : 'Something went wrong.' })
+      setErrors({ submit: err instanceof Error ? err.message : 'Something went wrong. Please try again.' })
     } finally {
       setLoading(false)
     }
@@ -108,60 +130,91 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '0.875rem 1rem',
+    width: '100%',
+    padding: '0.875rem 1rem',
     background: 'rgba(255,255,255,0.08)',
     border: '1.5px solid rgba(255,255,255,0.15)',
-    borderRadius: '0.75rem', color: '#f8fafc',
-    fontFamily: 'var(--font-body)', fontSize: '0.95rem',
-    outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
+    borderRadius: '0.75rem',
+    color: '#f8fafc',
+    fontFamily: 'var(--font-body)',
+    fontSize: '0.95rem',
+    outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
     boxSizing: 'border-box',
   }
+
   const labelStyle: React.CSSProperties = {
-    display: 'block', fontFamily: 'var(--font-body)', fontWeight: 500,
-    fontSize: '0.85rem', marginBottom: '0.4rem', color: 'rgba(248,250,252,0.75)',
+    display: 'block',
+    fontFamily: 'var(--font-body)',
+    fontWeight: 500,
+    fontSize: '0.85rem',
+    marginBottom: '0.4rem',
+    color: 'rgba(248,250,252,0.75)',
   }
+
   const errorStyle: React.CSSProperties = {
-    color: '#f87171', fontSize: '0.78rem', marginTop: '0.3rem', display: 'block',
+    color: '#f87171',
+    fontSize: '0.78rem',
+    marginTop: '0.3rem',
+    display: 'block',
   }
 
-  function renderField(field: FormField) {
-    const val = form[field.fieldKey] ?? ''
-    const hasError = !!errors[field.fieldKey]
-    const borderColor = hasError ? '#f87171' : 'rgba(255,255,255,0.15)'
-    const placeholder = field.placeholder || field.formLabel
+  function renderInput(field: FormField) {
+    const val       = form[field.fieldKey] || ''
+    const hasError  = !!errors[field.fieldKey]
+    const border    = hasError ? '#f87171' : 'rgba(255,255,255,0.15)'
+    const onChange  = (v: string) => setForm(f => ({ ...f, [field.fieldKey]: v }))
 
-    // Designation key → always render as dropdown
-    if (field.fieldKey === 'designation' || field.fieldType === 'select') {
-      const optionList = field.options
+    // Designation field always gets the curated dropdown
+    if (field.fieldKey === 'designation') {
+      const opts = field.options
         ? field.options.split(',').map(o => o.trim()).filter(Boolean)
-        : (field.fieldKey === 'designation' ? DESIGNATIONS : [])
+        : DESIGNATIONS
       return (
         <select
           value={val}
-          onChange={e => setForm(f => ({ ...f, [field.fieldKey]: e.target.value }))}
+          onChange={e => onChange(e.target.value)}
           style={{
-            ...inputStyle, borderColor, appearance: 'none',
+            ...inputStyle, borderColor: border, appearance: 'none',
             backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
             backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', paddingRight: '2.5rem',
           }}
         >
-          <option value="" disabled style={{ background: '#1e1b4b' }}>
-            Select {field.formLabel.toLowerCase()}
-          </option>
-          {optionList.map(o => (
-            <option key={o} value={o} style={{ background: '#1e1b4b', color: '#f8fafc' }}>{o}</option>
-          ))}
+          <option value="" disabled style={{ background: '#1e1b4b' }}>Select your designation</option>
+          {opts.map(o => <option key={o} value={o} style={{ background: '#1e1b4b', color: '#f8fafc' }}>{o}</option>)}
         </select>
       )
     }
 
+    // Custom select field with admin-defined options
+    if (field.fieldType === 'select') {
+      const opts = field.options
+        ? field.options.split(',').map(o => o.trim()).filter(Boolean)
+        : []
+      return (
+        <select
+          value={val}
+          onChange={e => onChange(e.target.value)}
+          style={{
+            ...inputStyle, borderColor: border, appearance: 'none',
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', paddingRight: '2.5rem',
+          }}
+        >
+          <option value="" disabled style={{ background: '#1e1b4b' }}>Select {field.formLabel.toLowerCase()}</option>
+          {opts.map(o => <option key={o} value={o} style={{ background: '#1e1b4b', color: '#f8fafc' }}>{o}</option>)}
+        </select>
+      )
+    }
+
+    // Standard text / email / tel / number input
     return (
       <input
         type={field.fieldType || 'text'}
-        placeholder={placeholder}
+        placeholder={field.formLabel}
         value={val}
-        onChange={e => setForm(f => ({ ...f, [field.fieldKey]: e.target.value }))}
-        style={{ ...inputStyle, borderColor }}
+        onChange={e => onChange(e.target.value)}
+        style={{ ...inputStyle, borderColor: border }}
       />
     )
   }
@@ -177,23 +230,29 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
               : <span style={{ color: 'rgba(248,250,252,0.35)', fontWeight: 400 }}>(optional)</span>
             }
           </label>
-          {renderField(field)}
-          {errors[field.fieldKey] && <span style={errorStyle}>{errors[field.fieldKey]}</span>}
+          {renderInput(field)}
+          {errors[field.fieldKey] && (
+            <span style={errorStyle}>{errors[field.fieldKey]}</span>
+          )}
         </div>
       ))}
 
       {errors.submit && (
         <div style={{
-          padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)',
-          border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem',
-          color: '#fca5a5', fontSize: '0.85rem',
+          padding: '0.75rem 1rem',
+          background: 'rgba(248,113,113,0.1)',
+          border: '1px solid rgba(248,113,113,0.3)',
+          borderRadius: '0.75rem',
+          color: '#fca5a5',
+          fontSize: '0.85rem',
         }}>
           {errors.submit}
         </div>
       )}
 
       <button
-        type="submit" disabled={loading}
+        type="submit"
+        disabled={loading}
         className="btn-primary"
         style={{ marginTop: '0.5rem', fontSize: '1rem' }}
       >
