@@ -21,9 +21,7 @@ export async function POST(req: NextRequest) {
 
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-    
-
-    // form_data is keyed by fieldKey — read directly
+    // ── Read form values ──────────────────────────────────────────────────────
     const get = (key: string): string => (form_data[key] || '').toString().trim()
 
     const name        = get('name')        || 'Unknown'
@@ -55,26 +53,14 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Session check — is a grand prize session active? ──────────────────────
-    const { data: activeSession } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('event_id', event_id)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle()
-
-    const sessionActive = !!activeSession
+    // ── Always exclude grand prizes from spin wheel path ──────────────────────
+    // Grand prizes are awarded manually via the session page only
     const allPrizes     = event.prizes || []
-
-    // During a live session, grand prize is excluded from spin wheel — it's awarded manually
-    // When no session, grand prize is also excluded (only awarded via session page)
-    // FIX: always exclude grand prizes from the automated assignPrize path
     const eligiblePrizes = allPrizes.filter(
       (p: { is_grand_prize?: boolean }) => !p.is_grand_prize
     )
 
-    // ── Quantity: count how many times each prize has already been won ────────
+    // ── Count claimed prizes for stock check ──────────────────────────────────
     const prizeIds = eligiblePrizes
       .filter((p: { is_consolation?: boolean; quantity?: number }) =>
         !p.is_consolation && p.quantity != null
