@@ -31,7 +31,6 @@ export default function AdminSessionPage() {
   const supabase   = createClient()
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
-  // Load event name
   useEffect(() => {
     fetch('/api/admin/events').then(r => r.json()).then(d => {
       const ev = (d.events || []).find((e: { id: string; name: string }) => e.id === id)
@@ -39,7 +38,6 @@ export default function AdminSessionPage() {
     })
   }, [id])
 
-  // Load session + participants
   const loadSession = useCallback(async () => {
     const res  = await fetch(`/api/session?eventId=${id}`)
     const data = await res.json()
@@ -47,7 +45,6 @@ export default function AdminSessionPage() {
     setSession(s)
     setParticipants(data.participants ?? [])
 
-    // FIX: restore winner state after page refresh
     if (s?.winner_registration_id && !s.is_active) {
       const fromList = (data.participants as Participant[]).find(
         p => p.id === s.winner_registration_id
@@ -73,7 +70,7 @@ export default function AdminSessionPage() {
     return () => clearInterval(t)
   }, [loadSession])
 
-  // Realtime new registrations
+  // Realtime new registrations while session is live
   useEffect(() => {
     if (!session?.is_active) return
     if (channelRef.current) supabase.removeChannel(channelRef.current)
@@ -95,7 +92,7 @@ export default function AdminSessionPage() {
     return () => { supabase.removeChannel(ch) }
   }, [session?.id, session?.is_active, id, supabase])
 
-  // Actions
+  // Start session — API locks the event automatically
   async function startSession() {
     setStarting(true)
     setWinner(null)
@@ -112,6 +109,7 @@ export default function AdminSessionPage() {
     } finally { setStarting(false) }
   }
 
+  // Pick winner — everyone else gets "lost" in realtime, event stays locked
   async function confirmPick() {
     if (!session || !confirm) return
     const p = confirm
@@ -123,6 +121,7 @@ export default function AdminSessionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId:         session.id,
+          eventId:           id,
           winnerId:          p.id,
           grandPrizeName:    grandPrizeName.trim() || 'Grand Prize',
           allParticipantIds: participants.map(x => x.id),
@@ -133,6 +132,7 @@ export default function AdminSessionPage() {
     } finally { setPicking(false) }
   }
 
+  // End session without winner — API re-opens the event
   async function endSession() {
     if (!session) return
     setEnding(true)
@@ -140,7 +140,7 @@ export default function AdminSessionPage() {
       await fetch('/api/session', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session.id, end: true }),
+        body: JSON.stringify({ sessionId: session.id, end: true, eventId: id }),
       })
       setSession(s => s ? { ...s, is_active: false } : s)
     } finally { setEnding(false) }
@@ -200,8 +200,12 @@ export default function AdminSessionPage() {
             }}>
               Prize: <strong style={{ color: '#fcd34d' }}>{grandPrizeName.trim() || 'Grand Prize'}</strong>
               <br />
-              All {participants.length - 1} other participant{participants.length !== 2 ? 's' : ''}{' '}
-              will immediately see &ldquo;Better Luck Next Time&rdquo;.
+              {participants.length - 1} other participant{participants.length !== 2 ? 's' : ''} will
+              immediately see &ldquo;Better Luck Next Time&rdquo;.
+              <br />
+              <span style={{ color: 'rgba(248,113,113,0.7)', fontSize: '0.78rem' }}>
+                ⚠ Event will stay locked after — re-open from the Edit page.
+              </span>
             </div>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button onClick={() => setConfirm(null)} style={{
@@ -240,14 +244,37 @@ export default function AdminSessionPage() {
             <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(248,250,252,0.35)' }}>{eventName}</p>
           </div>
         </div>
-        {session?.is_active && (
-          <button onClick={endSession} disabled={ending} style={{
-            padding: '0.5rem 1rem',
-            background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)',
-            borderRadius: '0.65rem', color: '#fca5a5',
-            fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600,
-          }}>{ending ? 'Ending…' : 'End Session'}</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {session?.is_active && (
+            <>
+              {/* Lock badge */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                padding: '0.35rem 0.75rem',
+                background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+                borderRadius: '0.5rem', fontSize: '0.75rem', color: '#fca5a5',
+              }}>
+                🔒 Event locked
+              </div>
+              <button onClick={endSession} disabled={ending} style={{
+                padding: '0.5rem 1rem',
+                background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.25)',
+                borderRadius: '0.65rem', color: '#fca5a5',
+                fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600,
+              }}>{ending ? 'Ending…' : 'End Session'}</button>
+            </>
+          )}
+          {winner && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.4rem',
+              padding: '0.35rem 0.75rem',
+              background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+              borderRadius: '0.5rem', fontSize: '0.75rem', color: '#fca5a5',
+            }}>
+              🔒 Event locked — re-open from Edit page
+            </div>
+          )}
+        </div>
       </header>
 
       <div style={{
@@ -273,13 +300,24 @@ export default function AdminSessionPage() {
             <p style={{ margin: '0 0 1rem', color: '#fbbf24', fontWeight: 600, fontSize: '0.9rem' }}>
               {grandPrizeName.trim() || 'Grand Prize'}
             </p>
-            <p style={{ margin: 0, fontSize: '0.78rem', color: 'rgba(248,250,252,0.35)' }}>
+            <p style={{ margin: '0 0 1.5rem', fontSize: '0.78rem', color: 'rgba(248,250,252,0.35)' }}>
               Their screen now shows the winner card. All other participants have been notified.
             </p>
+            <div style={{
+              padding: '0.75rem 1rem',
+              background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.2)',
+              borderRadius: '0.75rem', fontSize: '0.8rem', color: 'rgba(248,250,252,0.5)',
+            }}>
+              🔒 Event is locked. To allow new registrations, toggle it active from the{' '}
+              <button
+                onClick={() => router.push(`/admin/events/${id}`)}
+                style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: 'pointer', fontSize: '0.8rem', padding: 0, textDecoration: 'underline' }}
+              >Edit page</button>.
+            </div>
           </div>
         )}
 
-        {/* No session */}
+        {/* No session yet */}
         {!session && (
           <div style={{ ...card, textAlign: 'center', padding: '3rem 2rem' }}>
             <div style={{
@@ -293,12 +331,18 @@ export default function AdminSessionPage() {
             </h2>
             <p style={{
               color: 'rgba(248,250,252,0.4)', fontSize: '0.875rem',
-              margin: '0 0 1.75rem', lineHeight: 1.6,
+              margin: '0 0 0.75rem', lineHeight: 1.6,
             }}>
-              When a session is live, participants see a waiting screen in real time.
-              You pick the winner — their screen lights up instantly.
+              Starting a session locks the event — no new registrations until you end it or pick a winner.
+              All registered participants see their wheel spinning live until you select someone.
             </p>
-            {/* Prize name */}
+            <div style={{
+              padding: '0.625rem 0.875rem', marginBottom: '1.75rem',
+              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
+              borderRadius: '0.65rem', fontSize: '0.78rem', color: 'rgba(248,250,252,0.45)',
+            }}>
+              🔒 Event will be locked while the session is live
+            </div>
             <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
               <label style={{
                 display: 'block', fontSize: '0.78rem', fontWeight: 600,
@@ -325,10 +369,9 @@ export default function AdminSessionPage() {
           </div>
         )}
 
-        {/* Active session */}
+        {/* Active session — participant picker */}
         {session?.is_active && !winner && (
           <>
-            {/* Status bar */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0.875rem 1.25rem',
@@ -342,7 +385,7 @@ export default function AdminSessionPage() {
                 }} />
                 <span style={{ fontWeight: 600, color: '#4ade80', fontSize: '0.875rem' }}>Session Live</span>
                 <span style={{ color: 'rgba(248,250,252,0.35)', fontSize: '0.78rem' }}>
-                  · {grandPrizeName.trim() || 'Grand Prize'}
+                  · {grandPrizeName.trim() || 'Grand Prize'} · 🔒 Event locked
                 </span>
               </div>
               <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'rgba(248,250,252,0.5)' }}>
@@ -350,7 +393,6 @@ export default function AdminSessionPage() {
               </span>
             </div>
 
-            {/* Participant list */}
             <div style={card}>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -451,7 +493,7 @@ export default function AdminSessionPage() {
         {session && !session.is_active && !winner && !session.winner_registration_id && (
           <div style={{ ...card, textAlign: 'center', padding: '2rem' }}>
             <p style={{ color: 'rgba(248,250,252,0.4)', margin: '0 0 1rem', fontSize: '0.875rem' }}>
-              Session ended without a winner.
+              Session ended without a winner. Event has been re-opened.
             </p>
             <button onClick={startSession} disabled={starting} style={{
               padding: '0.75rem 1.5rem',
