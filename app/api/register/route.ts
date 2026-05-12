@@ -32,33 +32,12 @@ export async function POST(req: NextRequest) {
 
     if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
 
-    // ── Duplicate check ───────────────────────────────────────────────────────
-    const { data: existing } = await supabase
-      .from('registrations')
-      .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
-      .eq('event_id', event_id)
-      .eq('email', email)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json({
-        registrationId:   existing.id,
-        prizeName:        existing.prize_name        ?? 'Thanks for playing!',
-        prizeRank:        existing.prize_rank_won    ?? 0,
-        prizeImageUrl:    existing.prize_image_url   ?? undefined,
-        prizeDescription: existing.prize_description ?? undefined,
-        won:              existing.game_result === 'won',
-        name:             existing.name,
-        duplicate:        true,
-      })
-    }
-
     // ── Check if a grand prize session is currently active ────────────────────
-    // If yes, register the participant but defer prize assignment entirely —
-    // the session PUT will assign won/lost to everyone when the winner is picked.
+    // Must happen BEFORE the duplicate check: during a live session every
+    // participant is allowed to register fresh — the session resolves prizes.
     const { data: activeSession } = await supabase
       .from('sessions')
-      .select('id')
+      .select('id, started_at')
       .eq('event_id', event_id)
       .eq('is_active', true)
       .maybeSingle()
@@ -66,7 +45,8 @@ export async function POST(req: NextRequest) {
     const isGrandPrizeSession = !!activeSession
 
     if (isGrandPrizeSession) {
-      // Insert with no prize info and no game_result — session will resolve this
+      // During a live session allow the same email to re-enter — each session
+      // is an independent draw. Insert with no prize info; session PUT resolves.
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
         .insert({
@@ -99,6 +79,27 @@ export async function POST(req: NextRequest) {
         won:              false,
         name:             reg.name,
         isGrandPrizeSession: true,
+      })
+    }
+
+    // ── Duplicate check (normal / non-session path only) ─────────────────────
+    const { data: existing } = await supabase
+      .from('registrations')
+      .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
+      .eq('event_id', event_id)
+      .eq('email', email)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({
+        registrationId:   existing.id,
+        prizeName:        existing.prize_name        ?? 'Thanks for playing!',
+        prizeRank:        existing.prize_rank_won    ?? 0,
+        prizeImageUrl:    existing.prize_image_url   ?? undefined,
+        prizeDescription: existing.prize_description ?? undefined,
+        won:              existing.game_result === 'won',
+        name:             existing.name,
+        duplicate:        true,
       })
     }
 
