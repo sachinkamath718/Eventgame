@@ -4,18 +4,16 @@ export type Prize = {
   name: string
   description?: string
   image_url?: string
-  quantity?: number        // how many can be won in total
-  claimed?: number         // how many have been claimed so far
+  quantity?: number
+  claimed?: number
   is_consolation?: boolean
   is_grand_prize?: boolean
 }
-
 export type DesignationRule = {
   designations: string[]
   prize_rank: number
   win_probability: number
 }
-
 export type AssignResult = {
   prize: Prize | null
   won: boolean
@@ -23,9 +21,12 @@ export type AssignResult = {
 
 /**
  * Check whether a prize still has remaining quantity.
+ * Grand prizes are managed manually via sessions — always unlimited here.
  * If quantity is undefined/null we treat it as unlimited.
  */
 function hasStock(prize: Prize): boolean {
+  if (prize.is_grand_prize) return true          // ← FIX: grand prize stock never blocks spin wheel
+  if (prize.is_consolation) return true          // consolation always available
   if (prize.quantity == null) return true
   const claimed = prize.claimed ?? 0
   return claimed < prize.quantity
@@ -37,9 +38,8 @@ function hasStock(prize: Prize): boolean {
  *  2. Probability roll  → win or consolation
  *  3. Quantity check    → if the target prize is exhausted, fall back to consolation
  *
- * Returns { prize, won }
- *   won = true  → real prize (pointer lands on that segment)
- *   won = false → consolation / better-luck-next-time
+ * NOTE: Grand prizes (rank 1 / is_grand_prize=true) are awarded manually
+ * via the session page — this function will never block them via stock.
  */
 export function assignPrize(
   designation: string,
@@ -59,11 +59,20 @@ export function assignPrize(
   const won  = roll < rule.win_probability
   if (!won) return { prize: consolation, won: false }
 
-  // Find the target prize
-  const target = prizes.find(p => p.rank === rule.prize_rank)
+  // Find the target prize — skip grand prizes on the spin wheel path
+  // (grand prize winners are chosen manually via session page)
+  const target = prizes.find(p => p.rank === rule.prize_rank && !p.is_grand_prize)
 
-  // Quantity guard — if prize is sold out, fall back to consolation
-  if (!target || !hasStock(target)) {
+  // If rule points to grand prize rank, redirect to next available prize
+  if (!target) {
+    const fallback = prizes
+      .filter(p => !p.is_grand_prize && !p.is_consolation && hasStock(p))
+      .sort((a, b) => a.rank - b.rank)[0] ?? consolation
+    return { prize: fallback, won: !!fallback && !fallback.is_consolation }
+  }
+
+  // Quantity guard
+  if (!hasStock(target)) {
     return { prize: consolation, won: false }
   }
 
