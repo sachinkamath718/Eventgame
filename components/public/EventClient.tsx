@@ -22,7 +22,6 @@ interface FormField {
 interface RegResult {
   registrationId: string; prizeName: string; prizeRank: number
   prizeImageUrl?: string; prizeDescription?: string; won: boolean; name?: string
-  // Set to true only when this specific participant is the grand prize session winner
   isGrandPrizeSession?: boolean
 }
 
@@ -63,10 +62,32 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
 
   const stages: Stage[] = ['form', 'game', 'result']
   const stageIdx        = stages.indexOf(stage)
-
-  // sessionMode is ONLY true for the grand prize winner waiting for host to pick
-  // Regular registrations always get their result immediately — no loop needed
   const isGrandPrizeSession = !!(regResult?.isGrandPrizeSession)
+
+  // Re-fetch the latest registration data before showing result
+  // This ensures grand prize winners see the correct prize (not their spin wheel result)
+  async function handleGameDone() {
+    if (!regResult) { setStage('result'); return }
+    try {
+      const res  = await fetch(`/api/check-registration?id=${regResult.registrationId}`)
+      const data = await res.json()
+      if (data.registration) {
+        const r = data.registration
+        setRegResult(prev => prev ? {
+          ...prev,
+          prizeName:        r.prize_name        ?? prev.prizeName,
+          prizeRank:        r.prize_rank_won     ?? prev.prizeRank,
+          prizeImageUrl:    r.prize_image_url    ?? prev.prizeImageUrl,
+          prizeDescription: r.prize_description  ?? prev.prizeDescription,
+          won:              r.game_result === 'won',
+          isGrandPrizeSession: r.is_grand_prize_winner ?? prev.isGrandPrizeSession,
+        } : prev)
+      }
+    } catch {
+      // If fetch fails, fall through and show whatever we have
+    }
+    setStage('result')
+  }
 
   return (
     <main style={{
@@ -172,16 +193,16 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
               prizes={prizes}
               targetRank={regResult.prizeRank}
               won={regResult.won}
-              onDone={() => setStage('result')}
+              onDone={handleGameDone}
               sessionMode={isGrandPrizeSession}
               registrationId={regResult.registrationId}
             />
           )}
           {event.game_type === 'number_match' && (
-            <NumberMatchGame won={regResult.won} onDone={() => setStage('result')} />
+            <NumberMatchGame won={regResult.won} onDone={handleGameDone} />
           )}
           {event.game_type === 'anime_match' && (
-            <AnimeMatchGame won={regResult.won} onDone={() => setStage('result')} />
+            <AnimeMatchGame won={regResult.won} onDone={handleGameDone} />
           )}
         </div>
       )}
@@ -193,6 +214,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           prizeName={regResult.prizeName}
           prizeDescription={regResult.prizeDescription}
           prizeImageUrl={regResult.prizeImageUrl}
+          isGrandPrize={regResult.isGrandPrizeSession}
           linkedinCompanyUrl={event.linkedin_company_url}
           linkedinShareText={event.linkedin_share_text}
           participantName={participantName}
