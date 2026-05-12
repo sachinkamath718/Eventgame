@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface FormField {
   formLabel: string
@@ -39,9 +39,9 @@ interface RegResult {
   won: boolean
   name?: string
   alreadyRegistered?: boolean
+  isGrandPrizeSession?: boolean
 }
 
-// Default DESIGNATIONS for the designation dropdown
 const DESIGNATIONS = [
   'CEO','COO','CFO','CTO','CMO','President','VP','Director',
   'Engineering Manager','Senior Engineer','Tech Lead','Architect','Manager',
@@ -49,7 +49,6 @@ const DESIGNATIONS = [
   'Student','Intern','Fresher','Trainee','Graduate','Other',
 ]
 
-// Fallback fields if event.form_fields is empty
 const DEFAULT_FIELDS: FormField[] = [
   { formLabel: 'Full Name',    fieldKey: 'name',         required: true,  fieldType: 'text',  options: '' },
   { formLabel: 'Work Email',   fieldKey: 'email',        required: true,  fieldType: 'email', options: '' },
@@ -59,19 +58,26 @@ const DEFAULT_FIELDS: FormField[] = [
 ]
 
 export default function RegisterForm({ event }: Props) {
-  // FIX: use event.form_fields — only render what admin saved, respecting additions/removals
   const fields: FormField[] =
     event.form_fields && event.form_fields.length > 0
       ? event.form_fields
       : DEFAULT_FIELDS
 
-  // Build form state dynamically from field keys
-  const [form, setForm] = useState<Record<string, string>>(
+  const [form, setForm]       = useState<Record<string, string>>(
     () => Object.fromEntries(fields.map(f => [f.fieldKey, '']))
   )
   const [errors, setErrors]   = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [result, setResult]   = useState<RegResult | null>(null)
+
+  // Check if a grand prize session is currently active
+  const [sessionActive, setSessionActive] = useState(false)
+  useEffect(() => {
+    fetch(`/api/session?eventId=${event.id}`)
+      .then(r => r.json())
+      .then(d => setSessionActive(!!(d.session?.is_active)))
+      .catch(() => {})
+  }, [event.id])
 
   const accentColor = event.ui_config?.accentColor || '#f59e0b'
 
@@ -79,17 +85,12 @@ export default function RegisterForm({ event }: Props) {
     const e: Record<string, string> = {}
     for (const field of fields) {
       const val = (form[field.fieldKey] || '').trim()
-      if (field.required && !val) {
-        e[field.fieldKey] = `${field.formLabel} is required`
-        continue
-      }
+      if (field.required && !val) { e[field.fieldKey] = `${field.formLabel} is required`; continue }
       if (!val) continue
-      if (field.fieldType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+      if (field.fieldType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val))
         e[field.fieldKey] = 'Enter a valid email'
-      }
-      if (field.fieldType === 'tel' && !/^\+?[\d\s\-]{7,15}$/.test(val)) {
+      if (field.fieldType === 'tel' && !/^\+?[\d\s\-]{7,15}$/.test(val))
         e[field.fieldKey] = 'Enter a valid phone number'
-      }
     }
     return e
   }
@@ -104,12 +105,15 @@ export default function RegisterForm({ event }: Props) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // FIX: send form keyed by fieldKey — API reads directly by fieldKey
         body: JSON.stringify({ event_id: event.id, form_data: form }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setResult(data)
+
+      // If a grand prize session is active, flag this registration so the
+      // wheel loops until the host picks a winner via realtime update
+      const enriched: RegResult = { ...data, isGrandPrizeSession: sessionActive }
+      setResult(enriched)
     } catch (err: unknown) {
       setErrors({ submit: err instanceof Error ? err.message : 'Something went wrong. Please try again.' })
     } finally {
@@ -123,91 +127,52 @@ export default function RegisterForm({ event }: Props) {
     }
     return (
       <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-        <div className="animate-spin-slow" style={{ fontSize: '2rem', marginBottom: '1rem' }}>⭐</div>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⭐</div>
         <p style={{ color: 'rgba(248,250,252,0.7)' }}>Loading your game…</p>
       </div>
     )
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '0.875rem 1rem',
+    width: '100%', padding: '0.875rem 1rem',
     background: 'rgba(255,255,255,0.08)',
     border: '1.5px solid rgba(255,255,255,0.15)',
-    borderRadius: '0.75rem',
-    color: '#f8fafc',
-    fontFamily: 'var(--font-body)',
-    fontSize: '0.95rem',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    boxSizing: 'border-box',
+    borderRadius: '0.75rem', color: '#f8fafc',
+    fontSize: '0.95rem', outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s', boxSizing: 'border-box',
   }
-
   const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontFamily: 'var(--font-body)',
-    fontWeight: 500,
-    fontSize: '0.85rem',
-    marginBottom: '0.4rem',
-    color: 'rgba(248,250,252,0.75)',
+    display: 'block', fontWeight: 500, fontSize: '0.85rem',
+    marginBottom: '0.4rem', color: 'rgba(248,250,252,0.75)',
   }
-
   const errorStyle: React.CSSProperties = {
-    color: '#f87171',
-    fontSize: '0.78rem',
-    marginTop: '0.3rem',
-    display: 'block',
+    color: '#f87171', fontSize: '0.78rem', marginTop: '0.3rem', display: 'block',
   }
 
   function renderInput(field: FormField) {
-    const val       = form[field.fieldKey] || ''
-    const hasError  = !!errors[field.fieldKey]
-    const border    = hasError ? '#f87171' : 'rgba(255,255,255,0.15)'
-    const onChange  = (v: string) => setForm(f => ({ ...f, [field.fieldKey]: v }))
+    const val      = form[field.fieldKey] || ''
+    const hasError = !!errors[field.fieldKey]
+    const border   = hasError ? '#f87171' : 'rgba(255,255,255,0.15)'
+    const onChange = (v: string) => setForm(f => ({ ...f, [field.fieldKey]: v }))
 
-    // Designation field always gets the curated dropdown
-    if (field.fieldKey === 'designation') {
+    if (field.fieldKey === 'designation' || field.fieldType === 'select') {
       const opts = field.options
         ? field.options.split(',').map(o => o.trim()).filter(Boolean)
-        : DESIGNATIONS
+        : field.fieldKey === 'designation' ? DESIGNATIONS : []
       return (
-        <select
-          value={val}
-          onChange={e => onChange(e.target.value)}
-          style={{
-            ...inputStyle, borderColor: border, appearance: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', paddingRight: '2.5rem',
-          }}
-        >
-          <option value="" disabled style={{ background: '#1e1b4b' }}>Select your designation</option>
+        <select value={val} onChange={e => onChange(e.target.value)} style={{
+          ...inputStyle, borderColor: border, appearance: 'none',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', paddingRight: '2.5rem',
+        }}>
+          <option value="" disabled style={{ background: '#1e1b4b' }}>
+            {field.fieldKey === 'designation' ? 'Select your designation' : `Select ${field.formLabel.toLowerCase()}`}
+          </option>
           {opts.map(o => <option key={o} value={o} style={{ background: '#1e1b4b', color: '#f8fafc' }}>{o}</option>)}
         </select>
       )
     }
 
-    // Custom select field with admin-defined options
-    if (field.fieldType === 'select') {
-      const opts = field.options
-        ? field.options.split(',').map(o => o.trim()).filter(Boolean)
-        : []
-      return (
-        <select
-          value={val}
-          onChange={e => onChange(e.target.value)}
-          style={{
-            ...inputStyle, borderColor: border, appearance: 'none',
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.5)' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', paddingRight: '2.5rem',
-          }}
-        >
-          <option value="" disabled style={{ background: '#1e1b4b' }}>Select {field.formLabel.toLowerCase()}</option>
-          {opts.map(o => <option key={o} value={o} style={{ background: '#1e1b4b', color: '#f8fafc' }}>{o}</option>)}
-        </select>
-      )
-    }
-
-    // Standard text / email / tel / number input
     return (
       <input
         type={field.fieldType || 'text'}
@@ -231,31 +196,22 @@ export default function RegisterForm({ event }: Props) {
             }
           </label>
           {renderInput(field)}
-          {errors[field.fieldKey] && (
-            <span style={errorStyle}>{errors[field.fieldKey]}</span>
-          )}
+          {errors[field.fieldKey] && <span style={errorStyle}>{errors[field.fieldKey]}</span>}
         </div>
       ))}
 
       {errors.submit && (
         <div style={{
-          padding: '0.75rem 1rem',
-          background: 'rgba(248,113,113,0.1)',
-          border: '1px solid rgba(248,113,113,0.3)',
-          borderRadius: '0.75rem',
-          color: '#fca5a5',
-          fontSize: '0.85rem',
+          padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)',
+          border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem',
+          color: '#fca5a5', fontSize: '0.85rem',
         }}>
           {errors.submit}
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="btn-primary"
-        style={{ marginTop: '0.5rem', fontSize: '1rem' }}
-      >
+      <button type="submit" disabled={loading} className="btn-primary"
+        style={{ marginTop: '0.5rem', fontSize: '1rem' }}>
         {loading ? '⏳ Registering…' : '🎯 Play & Win →'}
       </button>
     </form>
