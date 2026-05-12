@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ session, participants: participants ?? [] })
 }
 
-// POST — start session (NO event locking)
+// POST — start session
 export async function POST(req: NextRequest) {
   const { eventId } = await req.json()
   if (!eventId) return NextResponse.json({ error: 'eventId required' }, { status: 400 })
@@ -55,8 +55,6 @@ export async function POST(req: NextRequest) {
     .update({ is_active: false, ended_at: new Date().toISOString() })
     .eq('event_id', eventId)
     .eq('is_active', true)
-
-  // ── DO NOT lock the event — registrations stay open during session ──
 
   const { data: session, error } = await supabase
     .from('sessions')
@@ -83,8 +81,6 @@ export async function PUT(req: NextRequest) {
       .from('sessions')
       .update({ is_active: false, ended_at: new Date().toISOString() })
       .eq('id', sessionId)
-
-    // No need to touch is_active on the event — it was never locked
     return NextResponse.json({ ok: true })
   }
 
@@ -95,33 +91,34 @@ export async function PUT(req: NextRequest) {
 
   const prizeName = grandPrizeName?.trim() || 'Grand Prize'
 
-  // Fetch the grand prize row so we can attach prize_id
-  let grandPrizeId: string | null = null
-  if (eventId) {
-    const { data: gp } = await supabase
-      .from('prizes')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('is_grand_prize', true)
-      .limit(1)
-      .maybeSingle()
+  // ── Look up grand prize row for this event ────────────────────────────────
+  // Fetch all prizes and prefer is_grand_prize=true, fall back to rank 1
+  let grandPrizeId:          string | null = null
+  let grandPrizeDescription: string | null = null
+  let grandPrizeImageUrl:    string | null = null
 
-    if (!gp) {
-      // Fallback: find by rank 1 if is_grand_prize flag wasn't set
-      const { data: rank1 } = await supabase
-        .from('prizes')
-        .select('id')
-        .eq('event_id', eventId)
-        .eq('rank', 1)
-        .limit(1)
-        .maybeSingle()
-      grandPrizeId = rank1?.id ?? null
-    } else {
-      grandPrizeId = gp.id
+  if (eventId) {
+    const { data: prizes } = await supabase
+      .from('prizes')
+      .select('id, rank, name, description, image_url, is_grand_prize')
+      .eq('event_id', eventId)
+      .order('rank', { ascending: true })
+
+    if (prizes?.length) {
+      const gp =
+        prizes.find(p => p.is_grand_prize) ??
+        prizes.find(p => p.rank === 1)     ??
+        null
+
+      if (gp) {
+        grandPrizeId          = gp.id
+        grandPrizeDescription = gp.description ?? null
+        grandPrizeImageUrl    = gp.image_url   ?? null
+      }
     }
   }
 
-  // Close session + record winner
+  // ── Close session + record winner ─────────────────────────────────────────
   await supabase
     .from('sessions')
     .update({
@@ -131,7 +128,8 @@ export async function PUT(req: NextRequest) {
     })
     .eq('id', sessionId)
 
-  // Update winner registration — realtime fires to their SpinWheelGame
+  // ── Overwrite winner's registration with grand prize details ──────────────
+  // This intentionally replaces whatever spin wheel prize they received earlier
   await supabase
     .from('registrations')
     .update({
@@ -139,11 +137,13 @@ export async function PUT(req: NextRequest) {
       game_result:           'won',
       prize_name:            prizeName,
       prize_rank_won:        1,
+      prize_description:     grandPrizeDescription,
+      prize_image_url:       grandPrizeImageUrl,
       ...(grandPrizeId ? { prize_id: grandPrizeId } : {}),
     })
     .eq('id', winnerId)
 
-  // Mark all non-winners as lost — only if not already resolved
+  // ── Mark all non-winners as lost (only if not already resolved) ───────────
   const loserIds: string[] = (allParticipantIds ?? []).filter(
     (pid: string) => pid !== winnerId
   )
