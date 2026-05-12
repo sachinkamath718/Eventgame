@@ -216,6 +216,7 @@ export default function EditEventPage() {
           )}
 
          {/* TAB: Form Fields */}
+{tab === 1 && (
 <div>
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
     <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
@@ -338,6 +339,7 @@ export default function EditEventPage() {
     <strong style={{ color: 'rgba(248,113,113,0.45)' }}>✕</strong> — removes from config only, past data always safe.
   </p>
 </div>
+  }
           {/* TAB 2: Design */}
           {tab === 2 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
