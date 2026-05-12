@@ -175,7 +175,37 @@ export default function EditEventPage() {
     setHandingOut(null)
   }
 
-  const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '🎯 Win Rules', '📊 QR Code', '🏅 Winners']
+  async function downloadCSV() {
+    const res = await fetch(`/api/admin/winners?eventId=${id}&all=true`)
+    const d   = await res.json()
+    const rows: string[][] = []
+    // Header
+    rows.push(['Name','Email','Designation','Company','Prize','Prize Rank','Won','Handed Out','Date'])
+    for (const w of (d.winners ?? [])) {
+      rows.push([
+        w.name ?? '', w.email ?? '', w.designation ?? '', w.company ?? '',
+        w.prize_name ?? '', String(w.prize_rank_won ?? ''),
+        w.game_result === 'won' ? 'Yes' : 'No',
+        w.prize_handed_out ? 'Yes' : 'No',
+        new Date(w.created_at).toLocaleString(),
+      ])
+    }
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = `${slug}-registrations.csv`; a.click()
+  }
+
+  const tabs = [
+    { label: 'Details',    icon: '📋' },
+    { label: 'Form',       icon: '📝' },
+    { label: 'Design',     icon: '🎨' },
+    { label: 'Game',       icon: '🎮' },
+    { label: 'Prizes',     icon: '🏆' },
+    { label: 'Win Rules',  icon: '🎯' },
+    { label: 'QR Code',    icon: '📊' },
+    { label: 'Winners',    icon: '🏅' },
+  ]
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0d0d1f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(248,250,252,0.4)', fontFamily: 'Inter,sans-serif' }}>Loading…</div>
@@ -202,16 +232,46 @@ export default function EditEventPage() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '2rem 1.5rem' }}>
-        {error && <div style={{ padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', marginBottom: '1.5rem' }}>⚠️ {error}</div>}
+      <div style={{ maxWidth: 1060, margin: '0 auto', padding: '1.5rem 1.5rem 3rem' }}>
+        {error && <div style={{ padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', marginBottom: '1.25rem' }}>⚠️ {error}</div>}
 
-        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {tabs.map((t, i) => (
-            <button key={i} onClick={() => { setTab(i); if (i === 7 && winners.length === 0) loadWinners() }} style={{ padding: '0.5rem 1rem', borderRadius: '0.65rem', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, background: tab === i ? '#7c3aed' : 'rgba(255,255,255,0.07)', color: tab === i ? '#fff' : 'rgba(248,250,252,0.6)', transition: 'all 0.15s' }}>{t}</button>
-          ))}
-        </div>
+        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
+          {/* ── Left sidebar nav ── */}
+          <nav style={{
+            width: 170, flexShrink: 0,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '1rem',
+            padding: '0.625rem',
+            position: 'sticky', top: 72,
+          }}>
+            {tabs.map((t, i) => (
+              <button
+                key={i}
+                onClick={() => { setTab(i); if (i === 7 && winners.length === 0) loadWinners() }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.6rem',
+                  width: '100%', padding: '0.6rem 0.75rem',
+                  borderRadius: '0.625rem', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: tab === i ? 700 : 500,
+                  textAlign: 'left',
+                  background: tab === i ? '#7c3aed' : 'transparent',
+                  color: tab === i ? '#fff' : 'rgba(248,250,252,0.55)',
+                  transition: 'all 0.15s',
+                  marginBottom: '0.15rem',
+                }}
+                onMouseEnter={e => { if (tab !== i) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)' }}
+                onMouseLeave={e => { if (tab !== i) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              >
+                <span style={{ fontSize: '0.95rem' }}>{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* ── Main content panel ── */}
+          <div style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '1.75rem' }}>
 
           {/* TAB 0: Details */}
           {tab === 0 && (
@@ -412,14 +472,19 @@ export default function EditEventPage() {
           {/* TAB 7: Winners */}
           {tab === 7 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>Prize Winners</h3>
                   <p style={{ margin: '0.15rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)' }}>Tick ✓ when you physically hand out a prize.</p>
                 </div>
-                <button onClick={loadWinners} style={{ padding: '0.35rem 0.75rem', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.45rem', color: '#a78bfa', fontSize: '0.75rem', cursor: 'pointer' }}>
-                  {winnersLoading ? '⏳' : '↻ Refresh'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={downloadCSV} style={{ padding: '0.35rem 0.85rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '0.45rem', color: '#34d399', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}>
+                    ⬇ Export CSV
+                  </button>
+                  <button onClick={loadWinners} style={{ padding: '0.35rem 0.75rem', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.45rem', color: '#a78bfa', fontSize: '0.75rem', cursor: 'pointer' }}>
+                    {winnersLoading ? '⏳' : '↻ Refresh'}
+                  </button>
+                </div>
               </div>
 
               {/* Summary bar */}
@@ -546,15 +611,10 @@ export default function EditEventPage() {
             </div>
           )}
 
-        </div>
+        </div>{/* end main content panel */}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', gap: '0.75rem' }}>
-          <a href="/admin" style={{ padding: '0.75rem 1.5rem', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,250,252,0.6)', textDecoration: 'none', fontSize: '0.875rem' }}>Cancel</a>
-          <button onClick={save} disabled={saving} style={{ padding: '0.75rem 1.5rem', background: 'linear-gradient(135deg,#7c3aed,#4f46e5)', border: 'none', borderRadius: '0.75rem', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem' }}>
-            {saving ? '⏳ Saving…' : '💾 Save Changes'}
-          </button>
-        </div>
-      </div>
+        </div>{/* end flex row */}
+      </div>{/* end page wrapper */}
     </div>
   )
 }
