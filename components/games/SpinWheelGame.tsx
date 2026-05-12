@@ -39,12 +39,13 @@ export default function SpinWheelGame({
   const loopRef  = useRef(false)
   const supabase = createClient()
 
-  // Grand prizes are excluded from the wheel — they're awarded via session only
-  const wheelPrizes = prizes.filter(p => !p.is_grand_prize).slice(0, 8)
-  const segCount    = Math.max(wheelPrizes.length, 1)
-  const segAngle    = (2 * Math.PI) / segCount
+  // Exclude grand prizes AND rank-1 prizes from wheel — both are session-only
+  const wheelPrizes = prizes
+    .filter(p => !p.is_grand_prize && p.rank !== 1)
+    .slice(0, 8)
+  const segCount = Math.max(wheelPrizes.length, 1)
+  const segAngle = (2 * Math.PI) / segCount
 
-  // ─── Draw ──────────────────────────────────────────────────────────────────
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -87,6 +88,7 @@ export default function SpinWheelGame({
       ctx.restore()
     }
 
+    // Hub
     ctx.beginPath()
     ctx.arc(cx, cy, 26, 0, 2 * Math.PI)
     const hub = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26)
@@ -101,21 +103,16 @@ export default function SpinWheelGame({
 
   useEffect(() => { drawWheel(spinRef.current) }, [wheelPrizes.length]) // eslint-disable-line
 
-  // ─── Target index ──────────────────────────────────────────────────────────
-  // Returns the wheel segment index to land on.
-  // Returns -1 if the prize isn't on the wheel (e.g. grand prize) → caller skips animation.
   function getTargetIdx(isWon: boolean, rank: number): number {
     if (!isWon) {
-      // Land on consolation segment
       const idx = wheelPrizes.findIndex(p => p.is_consolation)
       return idx >= 0 ? idx : segCount - 1
     }
-    // Find the prize by rank on the wheel
     const idx = wheelPrizes.findIndex(p => p.rank === rank)
-    return idx  // -1 if not found (grand prize case)
+    // If rank not found on wheel (e.g. was grand prize rank), land on consolation
+    return idx >= 0 ? idx : wheelPrizes.findIndex(p => p.is_consolation) ?? segCount - 1
   }
 
-  // ─── Infinite loop ─────────────────────────────────────────────────────────
   function startLoop() {
     loopRef.current = true
     let start: number | null = null
@@ -135,17 +132,8 @@ export default function SpinWheelGame({
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
   }
 
-  // ─── Spin to target ────────────────────────────────────────────────────────
   function spinToTarget(isWon: boolean, rank: number) {
     const idx = getTargetIdx(isWon, rank)
-
-    // Prize not on wheel (grand prize) — skip animation, go straight to result
-    if (idx < 0) {
-      setSpinning(false)
-      setDone(true)
-      setTimeout(() => onDone(), 400)
-      return
-    }
 
     const exactTarget  = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
     const targetNorm_  = norm(exactTarget)
@@ -178,14 +166,13 @@ export default function SpinWheelGame({
     rafRef.current = requestAnimationFrame(animate)
   }
 
-  // ─── Regular spin (non-session) ────────────────────────────────────────────
   function spin() {
     if (spinning || done || sessionMode) return
     setSpinning(true)
     spinToTarget(won, targetRank)
   }
 
-  // ─── Session mode: wait for realtime update ────────────────────────────────
+  // Session mode: wheel spins silently, stops when realtime fires
   useEffect(() => {
     if (!sessionMode || !registrationId) return
     setSpinning(true)
@@ -215,19 +202,6 @@ export default function SpinWheelGame({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-
-      {sessionMode && !done && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.6rem',
-          padding: '0.4rem 1rem', borderRadius: '2rem',
-          background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
-        }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80' }} />
-          <span style={{ fontSize: '0.78rem', color: '#4ade80', fontWeight: 600 }}>
-            Live — host is selecting the winner
-          </span>
-        </div>
-      )}
 
       <div style={{ position: 'relative', display: 'inline-block' }}>
         <div style={{
@@ -260,11 +234,6 @@ export default function SpinWheelGame({
         <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>Spinning…</div>
       )}
 
-      {sessionMode && !done && (
-        <p style={{ color: 'rgba(248,250,252,0.4)', fontSize: '0.82rem', textAlign: 'center', margin: 0 }}>
-          Your wheel is spinning — the host will announce the winner shortly
-        </p>
-      )}
     </div>
   )
 }
