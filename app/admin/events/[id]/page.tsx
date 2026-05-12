@@ -38,6 +38,11 @@ export default function EditEventPage() {
   const [error, setError]     = useState('')
   const [origin, setOrigin]   = useState('')
 
+  type Winner = { id: string; name: string; designation: string; company: string; email: string; prize_name: string; prize_rank_won: number; prize_handed_out: boolean; is_grand_prize_winner: boolean; created_at: string }
+  const [winners, setWinners]         = useState<Winner[]>([])
+  const [winnersLoading, setWinnersLoading] = useState(false)
+  const [handingOut, setHandingOut]   = useState<string | null>(null)
+
   const [name, setName]         = useState('')
   const [slug, setSlug]         = useState('')
   const [isActive, setIsActive] = useState(true)
@@ -152,7 +157,25 @@ export default function EditEventPage() {
     img.src = url
   }
 
-  const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '🎯 Win Rules', '📊 QR Code']
+  async function loadWinners() {
+    setWinnersLoading(true)
+    const res = await fetch(`/api/admin/winners?eventId=${id}`)
+    if (res.ok) { const d = await res.json(); setWinners(d.winners ?? []) }
+    setWinnersLoading(false)
+  }
+
+  async function markHandedOut(regId: string, currentState: boolean) {
+    setHandingOut(regId)
+    await fetch('/api/admin/winners', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registrationId: regId, handed_out: !currentState }),
+    })
+    setWinners(prev => prev.map(w => w.id === regId ? { ...w, prize_handed_out: !currentState } : w))
+    setHandingOut(null)
+  }
+
+  const tabs = ['📋 Details', '📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '🎯 Win Rules', '📊 QR Code', '🏅 Winners']
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#0d0d1f', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(248,250,252,0.4)', fontFamily: 'Inter,sans-serif' }}>Loading…</div>
@@ -184,7 +207,7 @@ export default function EditEventPage() {
 
         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           {tabs.map((t, i) => (
-            <button key={i} onClick={() => setTab(i)} style={{ padding: '0.5rem 1rem', borderRadius: '0.65rem', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, background: tab === i ? '#7c3aed' : 'rgba(255,255,255,0.07)', color: tab === i ? '#fff' : 'rgba(248,250,252,0.6)', transition: 'all 0.15s' }}>{t}</button>
+            <button key={i} onClick={() => { setTab(i); if (i === 7 && winners.length === 0) loadWinners() }} style={{ padding: '0.5rem 1rem', borderRadius: '0.65rem', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, background: tab === i ? '#7c3aed' : 'rgba(255,255,255,0.07)', color: tab === i ? '#fff' : 'rgba(248,250,252,0.6)', transition: 'all 0.15s' }}>{t}</button>
           ))}
         </div>
 
@@ -383,6 +406,92 @@ export default function EditEventPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* TAB 7: Winners */}
+          {tab === 7 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>🏅 Prize Winners</h3>
+                  <p style={{ margin: '0.2rem 0 0', fontSize: '0.78rem', color: 'rgba(248,250,252,0.4)' }}>Tick ✓ to mark a prize as physically handed out.</p>
+                </div>
+                <button onClick={loadWinners} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer' }}>
+                  {winnersLoading ? '⏳' : '↻ Refresh'}
+                </button>
+              </div>
+
+              {/* Summary bar */}
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Total Winners', val: winners.length, color: '#a78bfa' },
+                  { label: 'Handed Out', val: winners.filter(w => w.prize_handed_out).length, color: '#4ade80' },
+                  { label: 'Pending', val: winners.filter(w => !w.prize_handed_out).length, color: '#fbbf24' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '0.75rem', padding: '0.875rem 1.25rem', flex: 1, minWidth: 120 }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', marginTop: '0.1rem' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {winnersLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(248,250,252,0.3)', fontSize: '0.875rem' }}>Loading…</div>
+              ) : winners.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem', color: 'rgba(248,250,252,0.25)', fontSize: '0.875rem' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+                  No winners yet — start a session or let participants play.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {winners.map(w => (
+                    <div key={w.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '1rem',
+                      padding: '0.875rem 1rem',
+                      background: w.prize_handed_out ? 'rgba(74,222,128,0.06)' : 'rgba(0,0,0,0.25)',
+                      border: `1px solid ${w.prize_handed_out ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                      borderRadius: '0.875rem', transition: 'all 0.3s',
+                    }}>
+                      {/* Avatar */}
+                      <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.95rem', color: '#fff', background: `hsl(${w.name.charCodeAt(0) * 15 % 360},55%,35%)` }}>
+                        {w.name.charAt(0).toUpperCase()}
+                      </div>
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {w.name}
+                          {w.is_grand_prize_winner && <span style={{ fontSize: '0.65rem', background: 'rgba(245,158,11,0.2)', color: '#fcd34d', padding: '0.1rem 0.4rem', borderRadius: '0.3rem', fontWeight: 700 }}>🏆 Grand</span>}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'rgba(248,250,252,0.4)' }}>
+                          {w.designation}{w.company ? ` · ${w.company}` : ''}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 600, marginTop: '0.15rem' }}>
+                          🎁 {w.prize_name}
+                        </div>
+                      </div>
+                      {/* Tick button */}
+                      <button
+                        onClick={() => markHandedOut(w.id, w.prize_handed_out)}
+                        disabled={handingOut === w.id}
+                        title={w.prize_handed_out ? 'Mark as NOT handed out' : 'Mark as handed out'}
+                        style={{
+                          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                          border: `2px solid ${w.prize_handed_out ? 'rgba(74,222,128,0.6)' : 'rgba(255,255,255,0.15)'}`,
+                          background: w.prize_handed_out ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)',
+                          color: w.prize_handed_out ? '#4ade80' : 'rgba(248,250,252,0.35)',
+                          fontSize: '1.2rem', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.25s',
+                          transform: handingOut === w.id ? 'scale(0.9)' : 'scale(1)',
+                        }}
+                      >
+                        {handingOut === w.id ? '…' : w.prize_handed_out ? '✓' : '○'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
