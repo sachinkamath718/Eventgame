@@ -22,6 +22,8 @@ interface FormField {
 interface RegResult {
   registrationId: string; prizeName: string; prizeRank: number
   prizeImageUrl?: string; prizeDescription?: string; won: boolean; name?: string
+  // Set to true only when this specific participant is the grand prize session winner
+  isGrandPrizeSession?: boolean
 }
 
 interface LuckyEvent {
@@ -37,10 +39,9 @@ interface LuckyEvent {
 type Stage = 'form' | 'game' | 'result'
 
 export default function EventClient({ event }: { event: LuckyEvent }) {
-  const [stage, setStage]           = useState<Stage>('form')
-  const [regResult, setRegResult]   = useState<RegResult | null>(null)
-  const [participantName, setName]  = useState('')
-  const [sessionActive, setSession] = useState(false)
+  const [stage, setStage]          = useState<Stage>('form')
+  const [regResult, setRegResult]  = useState<RegResult | null>(null)
+  const [participantName, setName] = useState('')
 
   const ui     = event.ui_config || {}
   const bg     = ui.bgColor && ui.bgColor2
@@ -48,20 +49,6 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
     : 'linear-gradient(145deg,#0a0a1a 0%,#1e1b4b 100%)'
   const accent = ui.accentColor || '#f59e0b'
   const prizes = event.prizes || []
-
-  // Poll session state — used only to set sessionMode on the spin wheel
-  useEffect(() => {
-    async function checkSession() {
-      try {
-        const res  = await fetch(`/api/session?eventId=${event.id}`)
-        const data = await res.json()
-        setSession(!!(data.session?.is_active))
-      } catch { /* ignore */ }
-    }
-    checkSession()
-    const t = setInterval(checkSession, 5000)
-    return () => clearInterval(t)
-  }, [event.id])
 
   // Listen for registration completion
   useEffect(() => {
@@ -76,6 +63,10 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
 
   const stages: Stage[] = ['form', 'game', 'result']
   const stageIdx        = stages.indexOf(stage)
+
+  // sessionMode is ONLY true for the grand prize winner waiting for host to pick
+  // Regular registrations always get their result immediately — no loop needed
+  const isGrandPrizeSession = !!(regResult?.isGrandPrizeSession)
 
   return (
     <main style={{
@@ -164,10 +155,12 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           textAlign: 'center',
         }}>
           <h2 style={{ fontWeight: 700, fontSize: '1.25rem', margin: '0 0 0.375rem' }}>
-            Your Turn
+            {isGrandPrizeSession ? 'Live Grand Prize Draw' : 'Your Turn'}
           </h2>
           <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.82rem', margin: '0 0 1.5rem' }}>
-            {event.game_type === 'spin_wheel'
+            {isGrandPrizeSession
+              ? 'The host is selecting the grand prize winner…'
+              : event.game_type === 'spin_wheel'
               ? 'Spin the wheel to reveal your prize'
               : event.game_type === 'number_match'
               ? 'Pull the lever — match all 3 to win'
@@ -180,7 +173,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
               targetRank={regResult.prizeRank}
               won={regResult.won}
               onDone={() => setStage('result')}
-              sessionMode={sessionActive}
+              sessionMode={isGrandPrizeSession}
               registrationId={regResult.registrationId}
             />
           )}
