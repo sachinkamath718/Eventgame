@@ -11,12 +11,13 @@ const GAMES = [
 ]
 
 type Prize = { rank: number; name: string; description: string; image_url: string; quantity: number; is_consolation: boolean; is_grand_prize: boolean }
-type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string; enabled?: boolean }
+type Field = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options: string }
 type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
 type Saved = { id: string; slug: string }
 
+// FIX: rank 1 has is_grand_prize: true — it's awarded via session page, not spin wheel
 const DEFAULT_PRIZES: Prize[] = [
-  { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: false },
+  { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: true  },
   { rank: 2, name: 'Premium Gift Hamper',   description: '', image_url: '', quantity: 3,  is_consolation: false, is_grand_prize: false },
   { rank: 3, name: 'Branded Merchandise',   description: '', image_url: '', quantity: 5,  is_consolation: false, is_grand_prize: false },
   { rank: 4, name: 'Digital Voucher',       description: '', image_url: '', quantity: 10, is_consolation: false, is_grand_prize: false },
@@ -30,6 +31,9 @@ const DEFAULT_FIELDS: Field[] = [
   { formLabel: 'Company',      fieldKey: 'company',      required: false, fieldType: 'text',  options: '' },
   { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'text',  options: '' },
 ]
+
+// Core field keys that cannot be removed
+const CORE_FIELD_KEYS = ['name', 'email', 'phone_number', 'company', 'designation']
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -186,9 +190,21 @@ export default function NewEventPage() {
     img.src = url
   }
 
-  const addField = (): void => setFields(fs => [...fs, { formLabel: '', fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '', enabled: true }])
-  const removeField = (i: number): void => setFields(fs => fs.filter((_, j) => j !== i))
-  const updateField = (i: number, patch: Partial<Field>): void => setFields(fs => fs.map((f, j) => j === i ? { ...f, ...patch } : f))
+  // FIX: unique fieldKey per new custom field
+  const addField = (): void => setFields(fs => [
+    ...fs,
+    { formLabel: '', fieldKey: `custom_${Date.now()}`, required: false, fieldType: 'text', options: '' },
+  ])
+
+  // FIX: only remove non-core fields
+  const removeField = (i: number): void => {
+    const field = fields[i]
+    if (CORE_FIELD_KEYS.includes(field.fieldKey)) return
+    setFields(fs => fs.filter((_, j) => j !== i))
+  }
+
+  const updateField = (i: number, patch: Partial<Field>): void =>
+    setFields(fs => fs.map((f, j) => j === i ? { ...f, ...patch } : f))
 
   const tabs = ['📝 Form Fields', '🎨 Design', '🎮 Game', '🏆 Prizes', '🎯 Win Rules', '📊 QR Code']
 
@@ -280,108 +296,99 @@ export default function NewEventPage() {
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '2rem' }}>
 
-          {/* TAB 0: Form Fields */}
+          {/* ── TAB 0: Form Fields ── */}
           {tab === 0 && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
-                  Fields shown in the participant registration form. Disable to hide from future registrations — past data is always preserved.
+                  Fields shown in the participant registration form. Core fields (🔒) cannot be removed.
                 </p>
-                <button onClick={addField} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Add Field</button>
+                <button onClick={addField} style={{ padding: '0.4rem 0.85rem', background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: '1rem' }}>
+                  + Add Field
+                </button>
               </div>
 
-              {/* Column headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                {['Label', 'Type', 'Maps To', 'Req', 'On', ''].map(h => (
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                {['Label', 'Type', 'Maps To', 'Req', ''].map(h => (
                   <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
                 ))}
               </div>
 
               {fields.map((field, i) => {
-                const enabled = field.enabled !== false
+                const isCore = CORE_FIELD_KEYS.includes(field.fieldKey)
                 return (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.5fr 0.5fr auto',
-                      gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center',
-                      opacity: enabled ? 1 : 0.4, transition: 'opacity 0.2s',
-                    }}
-                  >
+                  <div key={field.fieldKey} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.8fr 0.6fr auto', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
                     <input
-                      style={{ ...F, padding: '0.5rem 0.7rem' }}
+                      style={{ ...F, padding: '0.5rem 0.7rem', opacity: isCore ? 0.65 : 1 }}
                       value={field.formLabel}
                       placeholder="Label"
-                      onChange={e => updateField(i, { formLabel: e.target.value })}
+                      readOnly={isCore}
+                      onChange={e => !isCore && updateField(i, { formLabel: e.target.value })}
                     />
                     <select
-                      style={{ ...F, padding: '0.5rem', appearance: 'none' }}
+                      style={{ ...F, padding: '0.5rem', appearance: 'none', opacity: isCore ? 0.65 : 1 }}
                       value={field.fieldType}
+                      disabled={isCore}
                       onChange={e => updateField(i, { fieldType: e.target.value })}
                     >
-                      {['text','email','tel','number','select'].map(t => (
+                      {['text', 'email', 'tel', 'number', 'select'].map(t => (
                         <option key={t} value={t} style={{ background: '#1e1b4b' }}>{t}</option>
                       ))}
                     </select>
-                    <select
-                      style={{ ...F, padding: '0.5rem 0.4rem', appearance: 'none', fontSize: '0.78rem' }}
-                      value={field.fieldKey}
-                      onChange={e => updateField(i, { fieldKey: e.target.value })}
-                    >
-                      {['name','email','phone_number','company','designation','custom'].map(k => (
-                        <option key={k} value={k} style={{ background: '#1e1b4b' }}>{k}</option>
-                      ))}
-                    </select>
-
-                    {/* Required checkbox */}
+                    <div style={{
+                      ...F, padding: '0.5rem 0.4rem', fontSize: '0.78rem',
+                      opacity: 0.65, display: 'flex', alignItems: 'center',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {field.fieldKey}
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <input
                         type="checkbox"
                         checked={field.required}
+                        disabled={isCore && field.required}
                         onChange={e => updateField(i, { required: e.target.checked })}
                         style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7c3aed' }}
                       />
                     </div>
-
-                    {/* Enabled toggle */}
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    {isCore ? (
+                      <div style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.45rem', color: 'rgba(248,250,252,0.2)', fontSize: '0.8rem', textAlign: 'center', cursor: 'not-allowed' }}>
+                        🔒
+                      </div>
+                    ) : (
                       <button
-                        type="button"
-                        title={enabled ? 'Click to disable (hides from form, keeps past data)' : 'Click to enable'}
-                        onClick={() => updateField(i, { enabled: !enabled })}
-                        style={{
-                          width: 32, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
-                          background: enabled ? '#7c3aed' : 'rgba(255,255,255,0.15)',
-                          position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-                        }}
-                      >
-                        <span style={{
-                          position: 'absolute', top: 2,
-                          left: enabled ? 16 : 2,
-                          width: 14, height: 14, borderRadius: '50%',
-                          background: '#fff', transition: 'left 0.2s', display: 'block',
-                        }} />
-                      </button>
-                    </div>
-
-                    {/* Remove button */}
-                    <button
-                      onClick={() => removeField(i)}
-                      title="Remove field permanently from this event config"
-                      style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >✕</button>
+                        onClick={() => removeField(i)}
+                        style={{ padding: '0.4rem 0.6rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem' }}
+                      >✕</button>
+                    )}
                   </div>
                 )
               })}
 
-              <p style={{ margin: '0.75rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)', lineHeight: 1.5 }}>
-                <strong style={{ color: 'rgba(248,250,252,0.45)' }}>Toggle Off</strong> = hidden from new registrations, all past responses kept intact.{' '}
-                <strong style={{ color: 'rgba(248,113,113,0.5)' }}>✕ Remove</strong> = removes from this event config only (past data in form_data column is still safe).
-              </p>
+              {/* Options editor for select-type custom fields */}
+              {fields.some(f => f.fieldType === 'select' && !CORE_FIELD_KEYS.includes(f.fieldKey)) && (
+                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '0.75rem' }}>
+                  <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', fontWeight: 700, color: '#a78bfa' }}>Dropdown Options</p>
+                  {fields.map((f, i) =>
+                    f.fieldType === 'select' && !CORE_FIELD_KEYS.includes(f.fieldKey) ? (
+                      <div key={f.fieldKey} style={{ marginBottom: '0.5rem' }}>
+                        <label style={{ ...L, color: 'rgba(248,250,252,0.4)' }}>{f.formLabel || `Field ${i + 1}`}</label>
+                        <input
+                          style={{ ...F, padding: '0.5rem 0.7rem', fontSize: '0.82rem' }}
+                          value={f.options}
+                          placeholder="Option A, Option B, Option C"
+                          onChange={e => updateField(i, { options: e.target.value })}
+                        />
+                        <span style={{ fontSize: '0.7rem', color: 'rgba(248,250,252,0.25)', display: 'block', marginTop: '0.25rem' }}>Comma-separated values</span>
+                      </div>
+                    ) : null
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 1: Design */}
+          {/* ── TAB 1: Design ── */}
           {tab === 1 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div><label style={L}>Background Start</label><input type="color" value={bgColor} onChange={e => setBg(e.target.value)} style={{ width: '100%', height: 40, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }} /></div>
@@ -397,7 +404,7 @@ export default function NewEventPage() {
             </div>
           )}
 
-          {/* TAB 2: Game */}
+          {/* ── TAB 2: Game ── */}
           {tab === 2 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem' }}>
               {GAMES.map(g => (
@@ -410,19 +417,18 @@ export default function NewEventPage() {
             </div>
           )}
 
-          {/* TAB 3: Prizes */}
+          {/* ── TAB 3: Prizes ── */}
           {tab === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {/* column headers */}
               <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', paddingLeft: '0.75rem' }}>
                 {['Rank', 'Prize Name', 'Image URL', 'Qty'].map(h => (
                   <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
                 ))}
               </div>
               {prizes.map((p, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {p.is_consolation ? 'Consolation' : `Rank ${p.rank}`}
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 80px', gap: '0.5rem', alignItems: 'center', padding: '0.75rem', background: p.is_grand_prize ? 'rgba(245,158,11,0.06)' : 'rgba(0,0,0,0.2)', border: p.is_grand_prize ? '1px solid rgba(245,158,11,0.2)' : '1px solid transparent', borderRadius: '0.75rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: p.is_grand_prize ? '#fbbf24' : 'rgba(248,250,252,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {p.is_consolation ? 'Consolation' : p.is_grand_prize ? '🏆 Grand' : `Rank ${p.rank}`}
                   </span>
                   <input
                     style={{ ...F, padding: '0.5rem 0.75rem' }}
@@ -438,6 +444,8 @@ export default function NewEventPage() {
                   />
                   {p.is_consolation ? (
                     <span style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '1.1rem' }}>∞</span>
+                  ) : p.is_grand_prize ? (
+                    <span style={{ textAlign: 'center', fontSize: '0.7rem', color: 'rgba(245,158,11,0.5)', fontWeight: 600 }}>Session</span>
                   ) : (
                     <input
                       type="number"
@@ -450,12 +458,12 @@ export default function NewEventPage() {
                 </div>
               ))}
               <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)' }}>
-                Qty = total available units of each prize. Consolation prizes are unlimited (∞).
+                🏆 Grand prize is awarded manually via the Session page. Qty = total units for spin-wheel prizes. Consolation = unlimited (∞).
               </p>
             </div>
           )}
 
-          {/* TAB 4: Win Rules */}
+          {/* ── TAB 4: Win Rules ── */}
           {tab === 4 && (
             <div>
               <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>
@@ -489,7 +497,7 @@ export default function NewEventPage() {
             </div>
           )}
 
-          {/* TAB 5: QR Code */}
+          {/* ── TAB 5: QR Code ── */}
           {tab === 5 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', textAlign: 'center' }}>
               <div style={{ fontSize: '3rem' }}>🎉</div>
