@@ -13,7 +13,10 @@ interface Props {
   linkedinShareText?: string | null
   participantName: string
   registrationId: string
+  eventName?: string
 }
+
+const ZELIOT_LINKEDIN = 'https://www.linkedin.com/company/realzeliot/posts/?feedView=all'
 
 const LinkedInIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -24,28 +27,35 @@ const LinkedInIcon = () => (
 export default function ResultScreen({
   won, prizeName, prizeDescription, prizeImageUrl,
   isGrandPrize, linkedinCompanyUrl, linkedinShareText,
-  participantName, registrationId,
+  participantName, registrationId, eventName,
 }: Props) {
   const [emailSent, setEmailSent] = useState(false)
 
+  // ── Fire email immediately on mount (result just appeared) ────────────────
   useEffect(() => {
-    if (!emailSent) {
+    if (!emailSent && registrationId) {
       fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registrationId }),
       }).finally(() => setEmailSent(true))
     }
-  }, [registrationId])
+  }, [registrationId]) // eslint-disable-line
 
-  const shareUrl  = typeof window !== 'undefined' ? window.location.href : ''
-  const shareText = linkedinShareText || (won
-    ? `I just won "${prizeName}" — what a day! ${shareUrl}`
-    : `Just participated in a lucky draw event. ${shareUrl}`)
+  const firstName = participantName.split(' ')[0] || 'there'
 
-  const linkedinShareUrl  = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}&summary=${encodeURIComponent(shareText)}`
-  const linkedinFollowUrl = linkedinCompanyUrl || 'https://www.linkedin.com/company/'
-  const firstName         = participantName.split(' ')[0] || 'there'
+  // ── LinkedIn URLs ─────────────────────────────────────────────────────────
+  // Follow: always goes to Zeliot's page (override any DB setting)
+  const followUrl = linkedinCompanyUrl || ZELIOT_LINKEDIN
+
+  // Share: build a Zeliot-branded caption
+  const sharePageUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const defaultCaption = won
+    ? `🎉 I just won "${prizeName}" at the Zeliot event! Huge thanks to the team at Zeliot for organising such a fun lucky draw. 🙌\n\nCome check out what Zeliot is up to: ${ZELIOT_LINKEDIN}`
+    : `Just participated in the Zeliot Lucky Draw event — what a fun experience! 🎯 Check out Zeliot: ${ZELIOT_LINKEDIN}`
+
+  const shareCaption  = linkedinShareText || defaultCaption
+  const shareUrl      = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(sharePageUrl)}&summary=${encodeURIComponent(shareCaption)}`
 
   return (
     <div style={{ width: '100%', maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -53,8 +63,7 @@ export default function ResultScreen({
 
       {/* Main result card */}
       <div style={{
-        borderRadius: '1.5rem',
-        overflow: 'hidden',
+        borderRadius: '1.5rem', overflow: 'hidden',
         border: `1px solid ${won ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)'}`,
         background: won
           ? 'linear-gradient(160deg,rgba(245,158,11,0.08) 0%,rgba(239,68,68,0.05) 100%)'
@@ -63,24 +72,18 @@ export default function ResultScreen({
         {/* Top accent bar */}
         <div style={{
           height: 4,
-          background: won
-            ? 'linear-gradient(90deg,#f59e0b,#ef4444)'
-            : 'rgba(255,255,255,0.08)',
+          background: won ? 'linear-gradient(90deg,#f59e0b,#ef4444)' : 'rgba(255,255,255,0.08)',
         }} />
 
         <div style={{ padding: '2rem', textAlign: 'center' }}>
-          {/* Prize image or icon */}
+          {/* Icon */}
           <div style={{ marginBottom: '1.25rem' }}>
             {prizeImageUrl ? (
-              <img
-                src={prizeImageUrl}
-                alt={prizeName}
-                style={{
-                  width: 100, height: 100, objectFit: 'contain',
-                  borderRadius: '1rem', margin: '0 auto', display: 'block',
-                  filter: won ? 'drop-shadow(0 0 16px rgba(245,158,11,0.5))' : 'none',
-                }}
-              />
+              <img src={prizeImageUrl} alt={prizeName} style={{
+                width: 100, height: 100, objectFit: 'contain',
+                borderRadius: '1rem', margin: '0 auto', display: 'block',
+                filter: won ? 'drop-shadow(0 0 16px rgba(245,158,11,0.5))' : 'none',
+              }} />
             ) : (
               <div style={{
                 width: 80, height: 80, borderRadius: '50%', margin: '0 auto',
@@ -96,13 +99,8 @@ export default function ResultScreen({
 
           {/* Status pill */}
           <div style={{
-            display: 'inline-block',
-            padding: '0.25rem 0.875rem',
-            borderRadius: 999,
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            display: 'inline-block', padding: '0.25rem 0.875rem', borderRadius: 999,
+            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
             marginBottom: '0.875rem',
             background: won ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.12)',
             color: won ? '#fcd34d' : '#94a3b8',
@@ -113,15 +111,10 @@ export default function ResultScreen({
 
           {/* Prize name */}
           <h2 style={{
-            fontWeight: 800,
-            fontSize: '1.6rem',
-            margin: '0 0 0.5rem',
-            lineHeight: 1.2,
+            fontWeight: 800, fontSize: '1.6rem', margin: '0 0 0.5rem', lineHeight: 1.2,
             ...(won ? {
               background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             } : { color: 'rgba(248,250,252,0.6)' }),
           }}>
             {prizeName}
@@ -141,13 +134,11 @@ export default function ResultScreen({
         </div>
       </div>
 
-      {/* Collect prize card (win only) */}
+      {/* Collect prize (winners only) */}
       {won && (
         <div style={{
-          padding: '1.25rem 1.5rem',
-          borderRadius: '1.25rem',
-          border: '1.5px solid rgba(245,158,11,0.4)',
-          background: 'rgba(245,158,11,0.05)',
+          padding: '1.25rem 1.5rem', borderRadius: '1.25rem',
+          border: '1.5px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.05)',
           textAlign: 'center',
         }}>
           <p style={{ fontWeight: 700, fontSize: '0.9rem', color: '#fcd34d', margin: '0 0 0.25rem' }}>
@@ -157,51 +148,54 @@ export default function ResultScreen({
             to collect your prize at the event desk
           </p>
           <code style={{
-            display: 'inline-block',
-            padding: '0.3rem 0.875rem',
-            background: 'rgba(0,0,0,0.3)',
-            borderRadius: '0.5rem',
-            fontFamily: 'monospace',
-            fontSize: '0.75rem',
-            color: 'rgba(248,250,252,0.4)',
-            letterSpacing: '0.12em',
+            display: 'inline-block', padding: '0.3rem 0.875rem',
+            background: 'rgba(0,0,0,0.3)', borderRadius: '0.5rem',
+            fontFamily: 'monospace', fontSize: '0.75rem',
+            color: 'rgba(248,250,252,0.4)', letterSpacing: '0.12em',
           }}>
             REF: {registrationId.slice(0, 8).toUpperCase()}
           </code>
         </div>
       )}
 
-      {/* LinkedIn */}
+      {/* LinkedIn section */}
       <div style={{
-        padding: '1.25rem 1.5rem',
-        borderRadius: '1.25rem',
-        border: '1px solid rgba(255,255,255,0.07)',
-        background: 'rgba(255,255,255,0.02)',
+        padding: '1.25rem 1.5rem', borderRadius: '1.25rem',
+        border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)',
       }}>
         <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'rgba(248,250,252,0.5)', margin: '0 0 0.875rem', fontWeight: 500 }}>
-          Stay connected
+          Stay connected with Zeliot
         </p>
         <div style={{ display: 'flex', gap: '0.625rem' }}>
-          <a href={linkedinFollowUrl} target="_blank" rel="noopener noreferrer" style={{
+          {/* Follow — goes to Zeliot LinkedIn page */}
+          <a href={followUrl} target="_blank" rel="noopener noreferrer" style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '0.5rem', padding: '0.7rem',
             background: '#0a66c2', borderRadius: '0.75rem',
-            color: '#fff', fontWeight: 600, fontSize: '0.82rem',
-            textDecoration: 'none',
+            color: '#fff', fontWeight: 600, fontSize: '0.82rem', textDecoration: 'none',
           }}>
-            <LinkedInIcon /> Follow
+            <LinkedInIcon /> Follow Zeliot
           </a>
-          <a href={linkedinShareUrl} target="_blank" rel="noopener noreferrer" style={{
+          {/* Share — posts win/lose caption */}
+          <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '0.5rem', padding: '0.7rem',
-            background: 'rgba(10,102,194,0.15)',
-            border: '1px solid rgba(10,102,194,0.4)',
-            borderRadius: '0.75rem',
-            color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem',
-            textDecoration: 'none',
+            background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
+            borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem', textDecoration: 'none',
           }}>
             <LinkedInIcon /> Share
           </a>
+        </div>
+
+        {/* Preview the share caption */}
+        <div style={{
+          marginTop: '0.875rem', padding: '0.75rem',
+          background: 'rgba(255,255,255,0.03)', borderRadius: '0.625rem',
+          border: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <p style={{ margin: 0, fontSize: '0.7rem', color: 'rgba(248,250,252,0.35)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
+            {shareCaption.length > 160 ? shareCaption.slice(0, 160) + '…' : shareCaption}
+          </p>
         </div>
       </div>
 

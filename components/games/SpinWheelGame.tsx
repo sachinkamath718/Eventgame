@@ -13,6 +13,11 @@ const SEG_COLORS = [
 
 function norm(r: number): number { return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }
 
+// ── DPI-aware canvas size ──────────────────────────────────────────────────
+const CSS_SIZE  = 300
+const DPR       = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
+const BUF_SIZE  = CSS_SIZE * DPR          // actual pixel buffer
+
 export default function SpinWheelGame({ prizes, targetRank, won, onDone, sessionMode, registrationId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
@@ -22,34 +27,35 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   const loopRef  = useRef(false)
   const supabase = createClient()
 
-  // ── Wheel segments: exclude grand prize / rank-1 only ─────────────────────
-  // Use coercion so null/undefined is_grand_prize counts as false
+  // ── Filter: exclude ONLY items explicitly flagged is_grand_prize=true ──────
+  // Do NOT exclude by rank — rank numbers in the DB vary per event.
+  // Consolation prizes (is_consolation=true) STAY on the wheel.
   const wheelPrizes = prizes
-    .filter(p => !p.is_grand_prize && Number(p.rank) !== 1)
+    .filter(p => p.is_grand_prize !== true)
+    .sort((a, b) => Number(a.rank) - Number(b.rank))
     .slice(0, 8)
+
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
 
-  // ── Canvas draw — flat colour + bright white text ─────────────────────────
+  // ── Canvas draw — DPI-sharp, bold white text ────────────────────────────────
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    const W = canvas.width, cx = W / 2, cy = W / 2, r = cx - 12
+    const ctx  = canvas.getContext('2d')!
+    const W    = BUF_SIZE          // pixel buffer size
+    const cx   = W / 2
+    const cy   = W / 2
+    const r    = cx - 14 * DPR    // leave ring margin
 
     ctx.clearRect(0, 0, W, W)
 
-    // Outer glow ring
-    ctx.beginPath()
-    ctx.arc(cx, cy, r + 10, 0, 2 * Math.PI)
-    ctx.fillStyle = 'rgba(255,255,255,0.04)'
-    ctx.fill()
-
+    // ── Segments ──────────────────────────────────────────────────────────────
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
       const end   = start + segAngle
 
-      // Flat segment fill
+      // Fill
       ctx.beginPath()
       ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, start, end)
@@ -57,65 +63,93 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       ctx.fillStyle = SEG_COLORS[i % SEG_COLORS.length]
       ctx.fill()
 
-      // Divider
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)'
-      ctx.lineWidth = 1.5
+      // Divider lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+      ctx.lineWidth   = 1.5 * DPR
       ctx.stroke()
 
-      // Label text — white, bold, with shadow so it reads on any colour
-      ctx.save()
-      ctx.translate(cx, cy)
-      ctx.rotate(start + segAngle / 2)
-      ctx.textAlign = 'right'
+      // ── Text: draw horizontally in each segment ──────────────────────────
+      // Move to the mid-arc point at 70% radius, rotate so text reads outward
+      const midAngle = start + segAngle / 2
+      const textR    = r * 0.62                // place text at 62% radius
 
-      // Shadow for contrast
-      ctx.shadowColor = 'rgba(0,0,0,0.9)'
-      ctx.shadowBlur  = 4
+      ctx.save()
+      ctx.translate(cx + textR * Math.cos(midAngle), cy + textR * Math.sin(midAngle))
+      ctx.rotate(midAngle + Math.PI / 2)       // text reads clockwise outward
+
+      // Dynamic font size: smaller when more segments
+      const fontSize = segCount <= 3 ? 13 * DPR
+                     : segCount <= 5 ? 11 * DPR
+                     : 9 * DPR
+
+      ctx.font      = `bold ${fontSize}px "Inter", "Helvetica Neue", Arial, sans-serif`
+      ctx.textAlign = 'center'
+
+      // Shadow for readability on any background
+      ctx.shadowColor   = 'rgba(0,0,0,1)'
+      ctx.shadowBlur    = 3 * DPR
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
 
       ctx.fillStyle = '#ffffff'
-      ctx.font      = `bold ${segCount <= 4 ? 13 : 11}px Inter, sans-serif`
 
-      const raw   = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
-      const label = raw.length > 16 ? raw.slice(0, 15) + '…' : raw
-      ctx.fillText(label, r - 10, 4)
+      const raw    = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
+      // Truncate to fit segment arc
+      const maxLen = segCount <= 3 ? 18 : segCount <= 5 ? 14 : 10
+      const label  = raw.length > maxLen ? raw.slice(0, maxLen - 1) + '…' : raw
 
+      ctx.fillText(label, 0, 0)
       ctx.restore()
     }
 
-    // Hub
+    // ── Outer ring ────────────────────────────────────────────────────────────
     ctx.beginPath()
-    ctx.arc(cx, cy, 26, 0, 2 * Math.PI)
-    const hub = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26)
+    ctx.arc(cx, cy, r, 0, 2 * Math.PI)
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+    ctx.lineWidth   = 2 * DPR
+    ctx.stroke()
+
+    // ── Hub ───────────────────────────────────────────────────────────────────
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur  = 0
+
+    ctx.beginPath()
+    ctx.arc(cx, cy, 28 * DPR, 0, 2 * Math.PI)
+    const hub = ctx.createRadialGradient(cx - 4 * DPR, cy - 4 * DPR, 2, cx, cy, 28 * DPR)
     hub.addColorStop(0, '#1e1b4b')
     hub.addColorStop(1, '#0a0a1a')
     ctx.fillStyle = hub
     ctx.fill()
     ctx.strokeStyle = 'rgba(255,255,255,0.25)'
-    ctx.lineWidth   = 2
+    ctx.lineWidth   = 2 * DPR
     ctx.stroke()
 
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur  = 0
-    ctx.fillStyle   = '#ffffff'
-    ctx.font        = 'bold 9px Inter, sans-serif'
-    ctx.textAlign   = 'center'
-    ctx.fillText('SPIN', cx, cy + 3)
+    ctx.fillStyle = '#ffffff'
+    ctx.font      = `bold ${9 * DPR}px "Inter", Arial, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.fillText('SPIN', cx, cy + 3 * DPR)
   }
 
-  useEffect(() => { drawWheel(spinRef.current) }, [wheelPrizes.length]) // eslint-disable-line
+  // Set up canvas with correct buffer size once
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.width  = BUF_SIZE
+    canvas.height = BUF_SIZE
+    canvas.style.width  = `${CSS_SIZE}px`
+    canvas.style.height = `${CSS_SIZE}px`
+    drawWheel(spinRef.current)
+  }, [wheelPrizes.length]) // eslint-disable-line
 
   // ── Target resolution ─────────────────────────────────────────────────────
   function getTargetIdx(isWon: boolean, rank: number): number {
     if (!isWon) {
-      // Land on consolation segment
       const idx = wheelPrizes.findIndex(p => !!p.is_consolation)
       return idx >= 0 ? idx : segCount - 1
     }
-    // Find exact rank match
     const idx = wheelPrizes.findIndex(p => Number(p.rank) === Number(rank))
     if (idx >= 0) return idx
-    // Fallback: first non-consolation segment
-    const fb = wheelPrizes.findIndex(p => !p.is_consolation)
+    const fb  = wheelPrizes.findIndex(p => !p.is_consolation)
     return fb >= 0 ? fb : 0
   }
 
@@ -190,13 +224,16 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
   }, [])
 
-  // Debug log — remove after testing
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('[SpinWheel] prizes:', prizes, '| wheelPrizes:', wheelPrizes, '| won:', won, '| targetRank:', targetRank)
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+
+      {/* Debug: show which prizes are on wheel */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
+          Segments ({segCount}): {wheelPrizes.map(p => p.name).join(', ')}
+        </div>
+      )}
+
       <div style={{ position: 'relative', display: 'inline-block' }}>
         {/* Pointer */}
         <div style={{
@@ -210,20 +247,17 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
           zIndex: 10,
         }} />
         <canvas
-          ref={canvasRef} width={300} height={300}
+          ref={canvasRef}
           style={{ borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default' }}
           onClick={spin}
         />
       </div>
 
-      {/* Segment legend */}
+      {/* Legend */}
       {wheelPrizes.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', maxWidth: 320 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', maxWidth: 300 }}>
           {wheelPrizes.map((p, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '0.3rem',
-              fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)',
-            }}>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)' }}>
               <div style={{ width: 8, height: 8, borderRadius: 2, background: SEG_COLORS[i % SEG_COLORS.length], flexShrink: 0 }} />
               {p.name}
             </div>
