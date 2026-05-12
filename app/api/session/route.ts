@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ session, participants: participants ?? [] })
 }
 
-// POST — start session + lock event
+// POST — start session (NO event locking)
 export async function POST(req: NextRequest) {
   const { eventId } = await req.json()
   if (!eventId) return NextResponse.json({ error: 'eventId required' }, { status: 400 })
@@ -56,11 +56,7 @@ export async function POST(req: NextRequest) {
     .eq('event_id', eventId)
     .eq('is_active', true)
 
-  // Lock the event — blocks new registrations while session is live
-  await supabase
-    .from('events')
-    .update({ is_active: false })
-    .eq('id', eventId)
+  // ── DO NOT lock the event — registrations stay open during session ──
 
   const { data: session, error } = await supabase
     .from('sessions')
@@ -76,25 +72,19 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ session })
 }
 
-// PUT — pick winner (event stays locked) OR end without winner (unlocks event)
+// PUT — pick winner OR end without winner
 export async function PUT(req: NextRequest) {
   const { sessionId, winnerId, end, grandPrizeName, allParticipantIds, eventId } = await req.json()
   const supabase = createServiceClient()
 
-  // ── End without picking a winner — re-open the event ──────────────────────
+  // ── End without picking a winner ──────────────────────────────────────────
   if (end) {
     await supabase
       .from('sessions')
       .update({ is_active: false, ended_at: new Date().toISOString() })
       .eq('id', sessionId)
 
-    if (eventId) {
-      await supabase
-        .from('events')
-        .update({ is_active: true })
-        .eq('id', eventId)
-    }
-
+    // No need to touch is_active on the event — it was never locked
     return NextResponse.json({ ok: true })
   }
 
@@ -105,19 +95,19 @@ export async function PUT(req: NextRequest) {
 
   const prizeName = grandPrizeName?.trim() || 'Grand Prize'
 
-  // 1. Fetch the actual grand prize row so we can attach prize_id
+  // Fetch the grand prize row so we can attach prize_id
   let grandPrizeId: string | null = null
   if (eventId) {
     const { data: gp } = await supabase
       .from('prizes')
       .select('id')
       .eq('event_id', eventId)
-      .eq('is_grand_prize', true)   // ← FIX: look up by flag, not just rank
+      .eq('is_grand_prize', true)
       .limit(1)
       .maybeSingle()
 
-    // Fallback: if is_grand_prize flag wasn't set, find by rank 1
     if (!gp) {
+      // Fallback: find by rank 1 if is_grand_prize flag wasn't set
       const { data: rank1 } = await supabase
         .from('prizes')
         .select('id')
@@ -131,7 +121,7 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  // 2. Close session + record winner
+  // Close session + record winner
   await supabase
     .from('sessions')
     .update({
@@ -141,8 +131,7 @@ export async function PUT(req: NextRequest) {
     })
     .eq('id', sessionId)
 
-  // 3. Update winner registration — realtime fires to their SpinWheelGame
-  //    game_result='won' + prize_rank_won=1 → wheel stops on grand prize segment
+  // Update winner registration — realtime fires to their SpinWheelGame
   await supabase
     .from('registrations')
     .update({
@@ -150,13 +139,11 @@ export async function PUT(req: NextRequest) {
       game_result:           'won',
       prize_name:            prizeName,
       prize_rank_won:        1,
-      ...(grandPrizeId ? { prize_id: grandPrizeId } : {}),   // ← FIX: attach prize_id so duplicate check works
+      ...(grandPrizeId ? { prize_id: grandPrizeId } : {}),
     })
     .eq('id', winnerId)
 
-  // 4. Mark all others as lost — realtime fires → their wheels stop on consolation
-  //    FIX: only update registrations that are still null/pending, don't overwrite
-  //    people who already won a spin-wheel prize in a previous session
+  // Mark all non-winners as lost — only if not already resolved
   const loserIds: string[] = (allParticipantIds ?? []).filter(
     (pid: string) => pid !== winnerId
   )
@@ -165,9 +152,8 @@ export async function PUT(req: NextRequest) {
       .from('registrations')
       .update({ game_result: 'lost' })
       .in('id', loserIds)
-      .is('game_result', null)      // ← FIX: don't overwrite existing spin-wheel results
+      .is('game_result', null)
   }
 
-  // Event stays locked (is_active=false) — admin re-opens from edit page toggle
   return NextResponse.json({ ok: true, prizeName })
 }
