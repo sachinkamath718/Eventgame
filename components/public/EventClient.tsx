@@ -26,7 +26,6 @@ interface RegResult {
 
 interface LuckyEvent {
   id: string; name: string; game_type: string
-  is_active?: boolean
   form_fields?: FormField[]
   ui_config?: Record<string, string>
   prizes?: Prize[]
@@ -38,9 +37,9 @@ interface LuckyEvent {
 type Stage = 'form' | 'game' | 'result'
 
 export default function EventClient({ event }: { event: LuckyEvent }) {
-  const [stage, setStage]          = useState<Stage>('form')
-  const [regResult, setRegResult]  = useState<RegResult | null>(null)
-  const [participantName, setName] = useState('')
+  const [stage, setStage]           = useState<Stage>('form')
+  const [regResult, setRegResult]   = useState<RegResult | null>(null)
+  const [participantName, setName]  = useState('')
   const [sessionActive, setSession] = useState(false)
 
   const ui     = event.ui_config || {}
@@ -50,7 +49,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
   const accent = ui.accentColor || '#f59e0b'
   const prizes = event.prizes || []
 
-  // Poll session state
+  // Poll session state — used only to set sessionMode on the spin wheel
   useEffect(() => {
     async function checkSession() {
       try {
@@ -77,10 +76,6 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
 
   const stages: Stage[] = ['form', 'game', 'result']
   const stageIdx        = stages.indexOf(stage)
-
-  // FIX: event is locked during a grand prize session — show waiting screen
-  // is_active=false means session is live, not that the event doesn't exist
-  const isLocked = event.is_active === false
 
   return (
     <main style={{
@@ -116,91 +111,38 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
         </p>
       </div>
 
-      {/* ── LOCKED: Grand prize session in progress ── */}
-      {isLocked && stage === 'form' && (
-        <div style={{
-          width: '100%', maxWidth: 440, textAlign: 'center',
-          background: 'rgba(245,158,11,0.06)',
-          border: '1px solid rgba(245,158,11,0.2)',
-          borderRadius: '1.5rem', padding: '3rem 2rem',
-          backdropFilter: 'blur(12px)',
-        }}>
-          {/* Pulsing icon */}
-          <div style={{ position: 'relative', width: 96, height: 96, margin: '0 auto 1.75rem' }}>
-            <div style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              border: '3px solid rgba(250,204,21,0.2)',
-              animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite',
-            }} />
-            <div style={{
-              position: 'absolute', inset: 10, borderRadius: '50%',
-              background: 'rgba(250,204,21,0.1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '2rem',
-            }}>🎰</div>
-          </div>
-
-          <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.4rem', fontWeight: 800, color: '#fbbf24' }}>
-            Grand Prize Draw is Live!
-          </h2>
-          <p style={{ margin: '0 0 1.5rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', lineHeight: 1.6 }}>
-            Registrations are paused while the host selects a grand prize winner.
-            Please check back in a moment.
-          </p>
-
-          {/* Live pulse indicator */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: '999px', padding: '0.5rem 1rem',
-          }}>
-            {[0, 150, 300].map(delay => (
-              <div key={delay} style={{
-                width: 7, height: 7, borderRadius: '50%', background: '#4ade80',
-                animation: `bounce 1s ${delay}ms infinite`,
-              }} />
-            ))}
-            <span style={{ marginLeft: '0.25rem', color: '#4ade80', fontSize: '0.82rem', fontWeight: 600 }}>
-              LIVE SESSION ACTIVE
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Stage indicator — only shown when not locked */}
-      {!isLocked && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '2rem' }}>
-          {['Register', 'Play', 'Result'].map((label, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.65rem', fontWeight: 700,
-                  background: stageIdx === i
-                    ? accent
-                    : stageIdx > i ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
-                  color: stageIdx === i ? '#0a0a1a' : stageIdx > i ? '#4ade80' : 'rgba(255,255,255,0.35)',
-                  border: stageIdx === i ? `2px solid ${accent}` : '2px solid transparent',
-                  transition: 'all 0.3s',
-                }}>
-                  {stageIdx > i ? '✓' : i + 1}
-                </div>
-                <span style={{
-                  fontSize: '0.72rem', fontWeight: stageIdx === i ? 600 : 400,
-                  color: stageIdx === i ? accent : 'rgba(255,255,255,0.3)',
-                }}>{label}</span>
+      {/* Stage indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '2rem' }}>
+        {['Register', 'Play', 'Result'].map((label, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+              <div style={{
+                width: 24, height: 24, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.65rem', fontWeight: 700,
+                background: stageIdx === i
+                  ? accent
+                  : stageIdx > i ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)',
+                color: stageIdx === i ? '#0a0a1a' : stageIdx > i ? '#4ade80' : 'rgba(255,255,255,0.35)',
+                border: stageIdx === i ? `2px solid ${accent}` : '2px solid transparent',
+                transition: 'all 0.3s',
+              }}>
+                {stageIdx > i ? '✓' : i + 1}
               </div>
-              {i < 2 && (
-                <div style={{ width: 32, height: 1, background: stageIdx > i ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)' }} />
-              )}
+              <span style={{
+                fontSize: '0.72rem', fontWeight: stageIdx === i ? 600 : 400,
+                color: stageIdx === i ? accent : 'rgba(255,255,255,0.3)',
+              }}>{label}</span>
             </div>
-          ))}
-        </div>
-      )}
+            {i < 2 && (
+              <div style={{ width: 32, height: 1, background: stageIdx > i ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.08)' }} />
+            )}
+          </div>
+        ))}
+      </div>
 
-      {/* ── Form stage ── */}
-      {!isLocked && stage === 'form' && (
+      {/* Form */}
+      {stage === 'form' && (
         <div style={{
           width: '100%', maxWidth: 440,
           background: 'rgba(255,255,255,0.04)',
@@ -212,7 +154,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
         </div>
       )}
 
-      {/* ── Game stage ── */}
+      {/* Game */}
       {stage === 'game' && regResult && (
         <div style={{
           width: '100%', maxWidth: 480,
@@ -222,13 +164,11 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           textAlign: 'center',
         }}>
           <h2 style={{ fontWeight: 700, fontSize: '1.25rem', margin: '0 0 0.375rem' }}>
-            {sessionActive ? 'Live Draw' : 'Your Turn'}
+            Your Turn
           </h2>
           <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.82rem', margin: '0 0 1.5rem' }}>
             {event.game_type === 'spin_wheel'
-              ? sessionActive
-                ? 'The wheel spins until the host picks a winner'
-                : 'Spin the wheel to reveal your prize'
+              ? 'Spin the wheel to reveal your prize'
               : event.game_type === 'number_match'
               ? 'Pull the lever — match all 3 to win'
               : 'Match all pairs to claim your prize'}
@@ -253,7 +193,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
         </div>
       )}
 
-      {/* ── Result stage ── */}
+      {/* Result */}
       {stage === 'result' && regResult && (
         <ResultScreen
           won={regResult.won}
@@ -272,21 +212,10 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           {ui.footerText}
         </p>
       )}
-
-      <style>{`
-        @keyframes ping {
-          75%, 100% { transform: scale(1.6); opacity: 0; }
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0);    animation-timing-function: cubic-bezier(0.8,0,1,1); }
-          50%       { transform: translateY(-5px); animation-timing-function: cubic-bezier(0,0,0.2,1); }
-        }
-      `}</style>
     </main>
   )
 }
 
-// FIX: passes full event including form_fields so RegisterForm renders dynamic fields
 function RegisterFormWrapper({ event }: { event: LuckyEvent }) {
   const [Form, setForm] = useState<React.ComponentType<{ event: LuckyEvent }> | null>(null)
   useEffect(() => {
