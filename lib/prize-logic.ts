@@ -98,8 +98,8 @@ export const DEFAULT_DESIGNATION_GROUPS = [
   {
     label: 'C-Suite / VP / Director',
     designations: ['CEO', 'COO', 'CFO', 'CTO', 'CMO', 'CHRO', 'VP', 'President', 'Director'],
-    prize_rank: 1,
-    win_probability: 90,
+    prize_rank: 2,   // Grand prize only via session; these get rank-2 on spin
+    win_probability: 40,
   },
   {
     label: 'Engineers / Developers',
@@ -109,20 +109,20 @@ export const DEFAULT_DESIGNATION_GROUPS = [
       'Software Engineer', 'Data Engineer', 'Data Analyst',
       'Business Analyst', 'Developer', 'QA Engineer',
     ],
-    prize_rank: 2,
-    win_probability: 80,
+    prize_rank: 3,
+    win_probability: 30,
   },
   {
     label: 'Students',
     designations: ['Student', 'Graduate'],
-    prize_rank: 3,
-    win_probability: 50,
+    prize_rank: 4,
+    win_probability: 25,
   },
   {
     label: 'Interns / Freshers',
     designations: ['Intern', 'Fresher', 'Trainee'],
     prize_rank: 4,
-    win_probability: 60,
+    win_probability: 20,
   },
 ]
 

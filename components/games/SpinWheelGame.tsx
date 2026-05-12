@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
 interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: () => void; sessionMode?: boolean; registrationId?: string }
 
-// Same color palette as the grand prize session wheel
 const SEG_COLORS = [
   '#7c3aed', '#4338ca', '#0891b2', '#0f766e',
   '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
@@ -17,23 +16,27 @@ function norm(r: number): number { return ((r % (2 * Math.PI)) + 2 * Math.PI) % 
 export default function SpinWheelGame({ prizes, targetRank, won, onDone, sessionMode, registrationId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
-  const [done, setDone] = useState(false)
-  const spinRef = useRef(0)
-  const rafRef = useRef<number>(0)
-  const loopRef = useRef(false)
+  const [done, setDone]         = useState(false)
+  const spinRef  = useRef(0)
+  const rafRef   = useRef<number>(0)
+  const loopRef  = useRef(false)
   const supabase = createClient()
 
-  // Filter out grand prize (rank 1) — only normal prizes on the wheel
-  const wheelPrizes = prizes.filter(p => !p.is_grand_prize && p.rank !== 1).slice(0, 8)
+  // ── Wheel segments: exclude grand prize / rank-1 only ─────────────────────
+  // Use coercion so null/undefined is_grand_prize counts as false
+  const wheelPrizes = prizes
+    .filter(p => !p.is_grand_prize && Number(p.rank) !== 1)
+    .slice(0, 8)
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
 
-  // ── Drawing — identical style to grand prize session wheel ────────────────
+  // ── Canvas draw — flat colour + bright white text ─────────────────────────
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
     const W = canvas.width, cx = W / 2, cy = W / 2, r = cx - 12
+
     ctx.clearRect(0, 0, W, W)
 
     // Outer glow ring
@@ -46,24 +49,36 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       const start = rot + i * segAngle
       const end   = start + segAngle
 
+      // Flat segment fill
       ctx.beginPath()
       ctx.moveTo(cx, cy)
       ctx.arc(cx, cy, r, start, end)
       ctx.closePath()
       ctx.fillStyle = SEG_COLORS[i % SEG_COLORS.length]
       ctx.fill()
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+
+      // Divider
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'
       ctx.lineWidth = 1.5
       ctx.stroke()
 
+      // Label text — white, bold, with shadow so it reads on any colour
       ctx.save()
       ctx.translate(cx, cy)
       ctx.rotate(start + segAngle / 2)
       ctx.textAlign = 'right'
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.font = 'bold 11px Inter, sans-serif'
-      const label = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
-      ctx.fillText(label.length > 14 ? label.slice(0, 14) + '…' : label, r - 10, 4)
+
+      // Shadow for contrast
+      ctx.shadowColor = 'rgba(0,0,0,0.9)'
+      ctx.shadowBlur  = 4
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font      = `bold ${segCount <= 4 ? 13 : 11}px Inter, sans-serif`
+
+      const raw   = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
+      const label = raw.length > 16 ? raw.slice(0, 15) + '…' : raw
+      ctx.fillText(label, r - 10, 4)
+
       ctx.restore()
     }
 
@@ -75,32 +90,33 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     hub.addColorStop(1, '#0a0a1a')
     ctx.fillStyle = hub
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+    ctx.lineWidth   = 2
     ctx.stroke()
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'
-    ctx.font = 'bold 9px Inter, sans-serif'
-    ctx.textAlign = 'center'
+
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur  = 0
+    ctx.fillStyle   = '#ffffff'
+    ctx.font        = 'bold 9px Inter, sans-serif'
+    ctx.textAlign   = 'center'
     ctx.fillText('SPIN', cx, cy + 3)
   }
 
   useEffect(() => { drawWheel(spinRef.current) }, [wheelPrizes.length]) // eslint-disable-line
 
-  // ── Target segment calculation ────────────────────────────────────────────
-  // "won" and "targetRank" come from the register API.
-  // We find which segment index corresponds to that prize rank.
-  // If no match (e.g. rank not on wheel), land on consolation.
+  // ── Target resolution ─────────────────────────────────────────────────────
   function getTargetIdx(isWon: boolean, rank: number): number {
     if (!isWon) {
-      const idx = wheelPrizes.findIndex(p => p.is_consolation)
+      // Land on consolation segment
+      const idx = wheelPrizes.findIndex(p => !!p.is_consolation)
       return idx >= 0 ? idx : segCount - 1
     }
-    // Find the prize with matching rank on the wheel
-    const idx = wheelPrizes.findIndex(p => p.rank === rank)
+    // Find exact rank match
+    const idx = wheelPrizes.findIndex(p => Number(p.rank) === Number(rank))
     if (idx >= 0) return idx
-    // Fallback: first non-consolation prize on wheel
-    const fallbackIdx = wheelPrizes.findIndex(p => !p.is_consolation)
-    return fallbackIdx >= 0 ? fallbackIdx : segCount - 1
+    // Fallback: first non-consolation segment
+    const fb = wheelPrizes.findIndex(p => !p.is_consolation)
+    return fb >= 0 ? fb : 0
   }
 
   function startLoop() {
@@ -116,19 +132,22 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     rafRef.current = requestAnimationFrame(loop)
   }
 
-  function stopLoop() { loopRef.current = false; if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  function stopLoop() {
+    loopRef.current = false
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  }
 
   function spinToTarget(isWon: boolean, rank: number) {
-    const idx = getTargetIdx(isWon, rank)
+    const idx         = getTargetIdx(isWon, rank)
     const exactTarget = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
-    const delta = (norm(exactTarget) - norm(spinRef.current) + 2 * Math.PI) % (2 * Math.PI)
+    const delta       = (norm(exactTarget) - norm(spinRef.current) + 2 * Math.PI) % (2 * Math.PI)
     const totalTravel = (5 + Math.floor(Math.random() * 3)) * 2 * Math.PI + delta
-    const absStart = spinRef.current
-    const startTime = performance.now()
-    const duration = 4500
+    const absStart    = spinRef.current
+    const startTime   = performance.now()
+    const duration    = 4500
 
     function animate(now: number) {
-      const t = Math.min((now - startTime) / duration, 1)
+      const t     = Math.min((now - startTime) / duration, 1)
       const eased = 1 - Math.pow(1 - t, 4)
       spinRef.current = norm(absStart + totalTravel * eased)
       drawWheel(spinRef.current)
@@ -150,12 +169,12 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     spinToTarget(won, targetRank)
   }
 
-  // Session mode: auto-spin, stop on realtime DB update
   useEffect(() => {
     if (!sessionMode || !registrationId) return
     setSpinning(true)
     startLoop()
-    const ch = supabase.channel(`spin:${registrationId}`)
+    const ch = supabase
+      .channel(`spin:${registrationId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'registrations', filter: `id=eq.${registrationId}` },
         (payload) => {
           const u = payload.new as Record<string, unknown>
@@ -166,11 +185,18 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     return () => { stopLoop(); supabase.removeChannel(ch) }
   }, [sessionMode, registrationId]) // eslint-disable-line
 
-  useEffect(() => () => { loopRef.current = false; if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
+  useEffect(() => () => {
+    loopRef.current = false
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  }, [])
+
+  // Debug log — remove after testing
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log('[SpinWheel] prizes:', prizes, '| wheelPrizes:', wheelPrizes, '| won:', won, '| targetRank:', targetRank)
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-      {/* Wheel — same layout as grand prize session */}
       <div style={{ position: 'relative', display: 'inline-block' }}>
         {/* Pointer */}
         <div style={{
@@ -190,6 +216,21 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         />
       </div>
 
+      {/* Segment legend */}
+      {wheelPrizes.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', maxWidth: 320 }}>
+          {wheelPrizes.map((p, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: '0.3rem',
+              fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)',
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: SEG_COLORS[i % SEG_COLORS.length], flexShrink: 0 }} />
+              {p.name}
+            </div>
+          ))}
+        </div>
+      )}
+
       {!sessionMode && !spinning && !done && (
         <button onClick={spin} style={{
           padding: '0.875rem 2.5rem',
@@ -201,11 +242,8 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
           Spin
         </button>
       )}
-
       {!sessionMode && spinning && (
-        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>
-          Spinning…
-        </div>
+        <div style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.9rem', fontWeight: 600 }}>Spinning…</div>
       )}
     </div>
   )
