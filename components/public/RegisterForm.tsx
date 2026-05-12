@@ -1,23 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 interface FormField {
   formLabel: string
-  fieldKey: string
-  required: boolean
+  fieldKey:  string
+  required:  boolean
   fieldType: string
-  options: string
+  options:   string
+  enabled?:  boolean
 }
 
 interface LuckyEvent {
   id: string
   form_fields?: FormField[]
-  ui_config?: {
-    heading?: string
-    subheading?: string
-    accentColor?: string
-  }
+  ui_config?: { accentColor?: string }
   prizes?: Array<{
     id: string; rank: number; name: string
     description?: string; image_url?: string
@@ -28,18 +25,15 @@ interface LuckyEvent {
   }>
 }
 
-interface Props { event: LuckyEvent }
-
 interface RegResult {
-  registrationId: string
-  prizeName: string
-  prizeRank: number
-  prizeImageUrl?: string
+  registrationId:    string
+  prizeName:         string
+  prizeRank:         number
+  prizeImageUrl?:    string
   prizeDescription?: string
-  won: boolean
-  name?: string
+  won:               boolean
+  name?:             string
   alreadyRegistered?: boolean
-  isGrandPrizeSession?: boolean
 }
 
 const DESIGNATIONS = [
@@ -50,18 +44,20 @@ const DESIGNATIONS = [
 ]
 
 const DEFAULT_FIELDS: FormField[] = [
-  { formLabel: 'Full Name',    fieldKey: 'name',         required: true,  fieldType: 'text',  options: '' },
-  { formLabel: 'Work Email',   fieldKey: 'email',        required: true,  fieldType: 'email', options: '' },
-  { formLabel: 'Phone Number', fieldKey: 'phone_number', required: true,  fieldType: 'tel',   options: '' },
-  { formLabel: 'Company',      fieldKey: 'company',      required: false, fieldType: 'text',  options: '' },
-  { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'text',  options: '' },
+  { formLabel: 'Full Name',    fieldKey: 'name',         required: true,  fieldType: 'text',   options: '' },
+  { formLabel: 'Work Email',   fieldKey: 'email',        required: true,  fieldType: 'email',  options: '' },
+  { formLabel: 'Phone Number', fieldKey: 'phone_number', required: true,  fieldType: 'tel',    options: '' },
+  { formLabel: 'Company',      fieldKey: 'company',      required: false, fieldType: 'text',   options: '' },
+  { formLabel: 'Designation',  fieldKey: 'designation',  required: true,  fieldType: 'select', options: '' },
 ]
 
-export default function RegisterForm({ event }: Props) {
-  const fields: FormField[] =
+export default function RegisterForm({ event }: { event: LuckyEvent }) {
+  // Filter out disabled fields — enabled:false means admin toggled it off
+  const fields: FormField[] = (
     event.form_fields && event.form_fields.length > 0
       ? event.form_fields
       : DEFAULT_FIELDS
+  ).filter(f => f.enabled !== false)
 
   const [form, setForm]       = useState<Record<string, string>>(
     () => Object.fromEntries(fields.map(f => [f.fieldKey, '']))
@@ -69,15 +65,6 @@ export default function RegisterForm({ event }: Props) {
   const [errors, setErrors]   = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [result, setResult]   = useState<RegResult | null>(null)
-
-  // Check if a grand prize session is currently active
-  const [sessionActive, setSessionActive] = useState(false)
-  useEffect(() => {
-    fetch(`/api/session?eventId=${event.id}`)
-      .then(r => r.json())
-      .then(d => setSessionActive(!!(d.session?.is_active)))
-      .catch(() => {})
-  }, [event.id])
 
   const accentColor = event.ui_config?.accentColor || '#f59e0b'
 
@@ -109,11 +96,7 @@ export default function RegisterForm({ event }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-
-      // If a grand prize session is active, flag this registration so the
-      // wheel loops until the host picks a winner via realtime update
-      const enriched: RegResult = { ...data, isGrandPrizeSession: sessionActive }
-      setResult(enriched)
+      setResult(data)
     } catch (err: unknown) {
       setErrors({ submit: err instanceof Error ? err.message : 'Something went wrong. Please try again.' })
     } finally {
