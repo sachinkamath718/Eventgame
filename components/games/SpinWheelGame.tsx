@@ -27,11 +27,18 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   // ── Filter: exclude ONLY items explicitly flagged is_grand_prize=true ──────
   // Do NOT exclude by rank — rank numbers in the DB vary per event.
   // Consolation prizes (is_consolation=true) STAY on the wheel.
-  const wheelPrizes = prizes
+  let wheelPrizes = prizes
     .filter(p => p.is_grand_prize !== true)
     .sort((a, b) => Number(a.rank) - Number(b.rank))
     .filter((p, i, arr) => i === 0 || p.rank !== arr[i - 1].rank)
-    .slice(0, 8)
+
+  const consPrize = wheelPrizes.find(p => p.is_consolation)
+  wheelPrizes = wheelPrizes.slice(0, 8)
+  
+  // Guarantee the consolation prize is visible on the wheel if it exists
+  if (consPrize && !wheelPrizes.some(p => p.is_consolation)) {
+    wheelPrizes[wheelPrizes.length - 1] = consPrize
+  }
 
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
