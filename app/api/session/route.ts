@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { sendResultEmail } from '@/lib/email'
 
 // GET ?eventId=xxx
 export async function GET(req: NextRequest) {
@@ -175,7 +176,7 @@ export async function PUT(req: NextRequest) {
     .eq('id', sessionId)
 
   // ── Mark winner with grand prize ──────────────────────────────────────────
-  await supabase
+  const { data: winner } = await supabase
     .from('registrations')
     .update({
       is_grand_prize_winner: true,
@@ -187,6 +188,16 @@ export async function PUT(req: NextRequest) {
       ...(grandPrizeId ? { prize_id: grandPrizeId } : {}),
     })
     .eq('id', winnerId)
+    .select('email, name, events (name)')
+    .single()
+
+  if (winner && winner.email) {
+    // Extracted event name from join, or default fallback
+    const eventName = (winner.events as any)?.name || 'the Grand Prize Draw'
+    // Fire and forget asynchronous email sending
+    sendResultEmail(winner.email, winner.name, eventName, true, prizeName)
+      .catch(err => console.error('Failed to send grand prize email:', err))
+  }
 
   // ── Mark ALL non-winners as lost — remove the null guard so session
   //    participants who got game_result from the spin wheel are also overwritten

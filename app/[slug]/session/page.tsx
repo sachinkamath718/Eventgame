@@ -13,8 +13,8 @@ function norm(r: number) {
 }
 
 const DUMMY_SEGMENTS = [
-  '🏆 Grand Prize', '10% OFF', 'FREE MERCH', '10% OFF',
-  '💫 Better Luck', '10% OFF', 'FREE MERCH', '10% OFF',
+  '🏆 Grand Prize', '✨ Spin', '🎪 Play', '🎯 Try',
+  '💫 Better Luck', '🌟 Go', '🎉 Win', '🎟️ Ticket',
 ]
 
 function SpinningWheel({
