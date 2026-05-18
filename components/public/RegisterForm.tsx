@@ -94,6 +94,17 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('registration-complete', { detail: result }))
     }
+
+    if ((result as any).duplicate) {
+      return (
+        <div style={{ textAlign: 'center', padding: '2rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔄</div>
+          <p style={{ color: '#f59e0b', fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem' }}>You've already played!</p>
+          <p style={{ color: 'rgba(248,250,252,0.7)', fontWeight: 500, fontSize: '0.9rem' }}>Loading your original result…</p>
+        </div>
+      )
+    }
+
     return (
       <div style={{ textAlign: 'center', padding: '2rem' }}>
         <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⭐</div>
