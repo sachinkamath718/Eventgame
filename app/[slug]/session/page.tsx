@@ -400,22 +400,7 @@ function SessionContent() {
 
               <SpinningWheel onResult={handleResult} registrationId={regId} />
 
-              {/* Live badge */}
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
-                borderRadius: '999px', padding: '0.5rem 1.1rem',
-              }}>
-                {[0, 150, 300].map(delay => (
-                  <div key={delay} style={{
-                    width: 7, height: 7, borderRadius: '50%', background: '#4ade80',
-                    animation: `bounce 1s ${delay}ms infinite`,
-                  }} />
-                ))}
-                <span style={{ marginLeft: '0.2rem', color: '#4ade80', fontSize: '0.82rem', fontWeight: 600 }}>
-                  LIVE SESSION — WAITING FOR RESULT
-                </span>
-              </div>
+
             </div>
 
             <style>{`
