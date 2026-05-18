@@ -48,11 +48,21 @@ export function assignPrize(
 ): AssignResult {
   const consolation = prizes.find(p => p.is_consolation) ?? null
 
-  // No matching rule → consolation
-  const rule = rules.find(r =>
+  // No matching rule → fallback to lowest non-consolation rank with 20% win probability
+  let rule = rules.find(r =>
     r.designations.some(d => d.toLowerCase() === designation.toLowerCase())
   )
-  if (!rule) return { prize: consolation, won: false }
+  if (!rule) {
+    const lowestRankPrize = prizes
+      .filter(p => !p.is_grand_prize && !p.is_consolation)
+      .sort((a, b) => b.rank - a.rank)[0]
+      
+    rule = {
+      designations: [],
+      prize_rank: lowestRankPrize ? lowestRankPrize.rank : 99,
+      win_probability: 20
+    }
+  }
 
   // Probability roll
   const roll = Math.random() * 100
@@ -71,8 +81,15 @@ export function assignPrize(
     return { prize: fallback, won: !!fallback && !fallback.is_consolation }
   }
 
-  // Quantity guard
+  // Quantity guard: If the targeted prize is out of stock, fall back to the next available lower-tier prize
   if (!hasStock(target)) {
+    const fallback = prizes
+      .filter(p => !p.is_grand_prize && !p.is_consolation && p.rank > target.rank && hasStock(p))
+      .sort((a, b) => a.rank - b.rank)[0]
+      
+    if (fallback) {
+      return { prize: fallback, won: true }
+    }
     return { prize: consolation, won: false }
   }
 
