@@ -16,8 +16,8 @@ function norm(r: number) {
 }
 
 const DUMMY_SEGMENTS = [
-  '🎁 Prize', '✨ Win', '🏆 Lucky', '🎯 Spin',
-  '💫 Try', '🎪 Play', '🌟 Go', '🎉 Spin',
+  '🏆 Grand Prize', '✨ Spin', '🎪 Play', '🎯 Try',
+  '💫 Better Luck', '🌟 Go', '🎉 Spin', '🎟️ Ticket',
 ]
 
 function SpinningWheel({
@@ -155,7 +155,8 @@ function SpinningWheel({
           resolvedRef.current = true
           const isWon  = updated.game_result === 'won'
           const pName  = (updated.prize_name as string) || 'Grand Prize'
-          const idx    = Math.floor(Math.random() * segCount)
+          // Force it to land on index 0 ('Grand Prize') if won, else index 4 ('Better Luck')
+          const idx    = isWon ? 0 : 4
           slowDownAndStop(idx, () => onResult(isWon, pName))
         }
       })
@@ -363,7 +364,7 @@ function SessionContent() {
   if (!regId) return (
     <main style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)',
+      background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter,sans-serif',
     }}>
@@ -383,7 +384,7 @@ function SessionContent() {
             exit={{ opacity: 0, scale: 0.95 }}
             style={{
               minHeight: '100vh',
-              background: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)',
+              background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               padding: '1.5rem', color: '#fff',
@@ -391,13 +392,6 @@ function SessionContent() {
             }}
           >
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-              <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, lineHeight: 1.2 }}>
-                You&apos;re in the Live Draw!
-              </h1>
-              <p style={{ margin: 0, color: 'rgba(255,255,255,0.55)', fontSize: '0.95rem' }}>
-                Stay on this screen — the winner is being selected live!
-              </p>
-
               <SpinningWheel onResult={handleResult} registrationId={regId} />
 
 
@@ -428,7 +422,7 @@ export default function SessionPage({ params: _params }: { params: Promise<{ slu
     <Suspense fallback={
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95)',
+        background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter,sans-serif',
       }}>Loading…</div>
