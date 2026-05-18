@@ -6,18 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // ── Spinning wheel (decorative — keeps screen alive while host picks) ─────────
-const SEG_COLORS = [
-  '#7c3aed', '#4338ca', '#0891b2', '#0f766e',
-  '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
-]
+const SEG_COLORS = ['#ffffff', '#1a1a1a']
 
 function norm(r: number) {
   return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
 }
 
 const DUMMY_SEGMENTS = [
-  '🏆 Grand Prize', '✨ Spin', '🎪 Play', '🎯 Try',
-  '💫 Better Luck', '🌟 Go', '🎉 Spin', '🎟️ Ticket',
+  '🏆 Grand Prize', '10% OFF', 'FREE MERCH', '10% OFF',
+  '💫 Better Luck', '10% OFF', 'FREE MERCH', '10% OFF',
 ]
 
 function SpinningWheel({
@@ -45,11 +42,14 @@ function SpinningWheel({
 
     ctx.clearRect(0, 0, W, W)
 
-    // Outer glow ring
+    // Outer thick black ring
     ctx.beginPath()
-    ctx.arc(cx, cy, r + 10, 0, 2 * Math.PI)
-    ctx.fillStyle = 'rgba(255,255,255,0.04)'
+    ctx.arc(cx, cy, r + 8, 0, 2 * Math.PI)
+    ctx.fillStyle = '#1a1a1a'
     ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2
+    ctx.stroke()
 
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
@@ -61,37 +61,30 @@ function SpinningWheel({
       ctx.closePath()
       ctx.fillStyle = SEG_COLORS[i % SEG_COLORS.length]
       ctx.fill()
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-      ctx.lineWidth = 1.5
+      ctx.strokeStyle = '#1a1a1a'
+      ctx.lineWidth = 1
       ctx.stroke()
 
       ctx.save()
       ctx.translate(cx, cy)
       ctx.rotate(start + segAngle / 2)
       ctx.textAlign = 'right'
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'
-      ctx.font = 'bold 11px Inter, sans-serif'
-      ctx.fillText(DUMMY_SEGMENTS[i], r - 10, 4)
+      
+      // Black text on white, White text on black
+      ctx.fillStyle = i % 2 === 0 ? '#1a1a1a' : '#ffffff'
+      ctx.font = '900 13px Inter, sans-serif'
+      ctx.fillText(DUMMY_SEGMENTS[i], r - 15, 4)
       ctx.restore()
     }
 
-    // Hub
+    // Center Hub (White with black border)
     ctx.beginPath()
-    ctx.arc(cx, cy, 26, 0, 2 * Math.PI)
-    const hub = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 26)
-    hub.addColorStop(0, '#1e1b4b')
-    hub.addColorStop(1, '#0a0a1a')
-    ctx.fillStyle = hub
+    ctx.arc(cx, cy, 22, 0, 2 * Math.PI)
+    ctx.fillStyle = '#ffffff'
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = '#1a1a1a'
+    ctx.lineWidth = 4
     ctx.stroke()
-
-    // Hub label
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'
-    ctx.font = 'bold 9px Inter, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('LIVE', cx, cy + 3)
   }
 
   function startFastLoop() {
@@ -169,22 +162,21 @@ function SpinningWheel({
   }, [registrationId]) // eslint-disable-line
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      {/* Pointer */}
-      <div style={{
-        position: 'absolute', top: -10, left: '50%',
-        transform: 'translateX(-50%)',
-        width: 0, height: 0,
-        borderLeft: '10px solid transparent',
-        borderRight: '10px solid transparent',
-        borderTop: '24px solid #f59e0b',
-        filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.8))',
-        zIndex: 10,
-      }} />
+    <div style={{ position: 'relative', display: 'inline-block', zIndex: 10 }}>
+      {/* Map Pin Pointer */}
+      <svg width="40" height="50" viewBox="0 0 24 30" style={{
+        position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)',
+        filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))', zIndex: 20
+      }}>
+        <path d="M12 0C5.373 0 0 5.373 0 12c0 8.4 12 18 12 18s12-9.6 12-18c0-6.627-5.373-12-12-12z" fill="#ffffff" stroke="#1a1a1a" strokeWidth="1.5"/>
+        <circle cx="12" cy="12" r="4" fill="#1a1a1a"/>
+      </svg>
+      
+      {/* The Wheel */}
       <canvas
         ref={canvasRef}
-        width={300} height={300}
-        style={{ borderRadius: '50%', display: 'block' }}
+        width={340} height={340}
+        style={{ borderRadius: '50%', display: 'block', filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.8))' }}
       />
     </div>
   )
@@ -364,7 +356,7 @@ function SessionContent() {
   if (!regId) return (
     <main style={{
       minHeight: '100vh',
-      background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
+      background: '#09090b',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter,sans-serif',
     }}>
@@ -383,26 +375,49 @@ function SessionContent() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             style={{
+              position: 'relative',
               minHeight: '100vh',
-              background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
+              overflow: 'hidden',
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               padding: '1.5rem', color: '#fff',
               fontFamily: 'Inter,sans-serif',
             }}
           >
-            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-              <SpinningWheel onResult={handleResult} registrationId={regId} />
+            {/* Funky Black Sunburst Background */}
+            <div style={{
+              position: 'absolute', inset: -100,
+              background: 'repeating-conic-gradient(from 0deg, #18181b 0deg 15deg, #09090b 15deg 30deg)',
+              zIndex: 0
+            }} />
+            
+            {/* Floating Emojis */}
+            <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }} style={{ position: 'absolute', top: '15%', left: '10%', fontSize: '2.5rem', rotate: '-15deg', zIndex: 1 }}>✨</motion.div>
+            <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} style={{ position: 'absolute', top: '25%', right: '12%', fontSize: '3rem', rotate: '20deg', zIndex: 1 }}>🌟</motion.div>
+            <motion.div animate={{ y: [0, -15, 0] }} transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }} style={{ position: 'absolute', bottom: '20%', left: '15%', fontSize: '3.5rem', rotate: '-10deg', zIndex: 1 }}>🎉</motion.div>
+            <motion.div animate={{ y: [0, 15, 0] }} transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }} style={{ position: 'absolute', bottom: '25%', right: '15%', fontSize: '2.5rem', rotate: '15deg', zIndex: 1 }}>🎁</motion.div>
 
+            <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2.5rem' }}>
+              
+              {/* Funky Pop-Art Title */}
+              <h1 style={{
+                margin: 0,
+                fontSize: 'clamp(2.5rem, 8vw, 4.5rem)',
+                fontWeight: 900,
+                lineHeight: 1.1,
+                color: '#ffffff',
+                WebkitTextStroke: '2px #1a1a1a',
+                textShadow: '4px 4px 0 #f59e0b',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+              }}>
+                Spin the Wheel<br/>& Try Your Luck!
+              </h1>
+
+              <div style={{ position: 'relative' }}>
+                <SpinningWheel onResult={handleResult} registrationId={regId} />
+              </div>
 
             </div>
-
-            <style>{`
-              @keyframes bounce {
-                0%, 100% { transform: translateY(0);    animation-timing-function: cubic-bezier(0.8,0,1,1); }
-                50%       { transform: translateY(-5px); animation-timing-function: cubic-bezier(0,0,0.2,1); }
-              }
-            `}</style>
           </motion.main>
         )}
       </AnimatePresence>
@@ -422,7 +437,7 @@ export default function SessionPage({ params: _params }: { params: Promise<{ slu
     <Suspense fallback={
       <div style={{
         minHeight: '100vh',
-        background: 'radial-gradient(circle at 50% 40%, #2d1b4e 0%, #000000 80%)',
+        background: '#09090b',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter,sans-serif',
       }}>Loading…</div>
