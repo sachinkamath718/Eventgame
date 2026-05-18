@@ -6,10 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
 interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: () => void; sessionMode?: boolean; registrationId?: string }
 
-const SEG_COLORS = [
-  '#7c3aed', '#4338ca', '#0891b2', '#0f766e',
-  '#b45309', '#be185d', '#1d4ed8', '#6d28d9',
-]
+const SEG_COLORS = ['#ffffff', '#1a1a1a']
 
 function norm(r: number): number { return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }
 
@@ -51,6 +48,15 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
 
     ctx.clearRect(0, 0, W, W)
 
+    // ── Outer thick black ring ───────────────────────────────────────────────
+    ctx.beginPath()
+    ctx.arc(cx, cy, r + 8 * DPR, 0, 2 * Math.PI)
+    ctx.fillStyle = '#1a1a1a'
+    ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2 * DPR
+    ctx.stroke()
+
     // ── Segments ──────────────────────────────────────────────────────────────
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
@@ -65,7 +71,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       ctx.fill()
 
       // Divider lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+      ctx.strokeStyle = '#1a1a1a'
       ctx.lineWidth   = 1.5 * DPR
       ctx.stroke()
 
@@ -86,13 +92,12 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       ctx.font      = `bold ${fontSize}px "Inter", "Helvetica Neue", Arial, sans-serif`
       ctx.textAlign = 'center'
 
-      // Shadow for readability on any background
-      ctx.shadowColor   = 'rgba(0,0,0,1)'
-      ctx.shadowBlur    = 3 * DPR
-      ctx.shadowOffsetX = 0
-      ctx.shadowOffsetY = 0
+      // No shadow needed for high contrast
+      ctx.shadowColor   = 'transparent'
+      ctx.shadowBlur    = 0
 
-      ctx.fillStyle = '#ffffff'
+      // Alternating text color
+      ctx.fillStyle = i % 2 === 0 ? '#1a1a1a' : '#ffffff'
 
       const raw    = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
       // Truncate to fit segment arc
@@ -103,30 +108,20 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       ctx.restore()
     }
 
-    // ── Outer ring ────────────────────────────────────────────────────────────
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, 2 * Math.PI)
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)'
-    ctx.lineWidth   = 2 * DPR
-    ctx.stroke()
-
     // ── Hub ───────────────────────────────────────────────────────────────────
     ctx.shadowColor = 'transparent'
     ctx.shadowBlur  = 0
 
     ctx.beginPath()
     ctx.arc(cx, cy, 28 * DPR, 0, 2 * Math.PI)
-    const hub = ctx.createRadialGradient(cx - 4 * DPR, cy - 4 * DPR, 2, cx, cy, 28 * DPR)
-    hub.addColorStop(0, '#1e1b4b')
-    hub.addColorStop(1, '#0a0a1a')
-    ctx.fillStyle = hub
+    ctx.fillStyle = '#ffffff'
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)'
-    ctx.lineWidth   = 2 * DPR
+    ctx.strokeStyle = '#1a1a1a'
+    ctx.lineWidth   = 4 * DPR
     ctx.stroke()
 
-    ctx.fillStyle = '#ffffff'
-    ctx.font      = `bold ${9 * DPR}px "Inter", Arial, sans-serif`
+    ctx.fillStyle = '#1a1a1a'
+    ctx.font      = `900 ${10 * DPR}px "Inter", Arial, sans-serif`
     ctx.textAlign = 'center'
     ctx.fillText('SPIN', cx, cy + 3 * DPR)
   }
@@ -235,21 +230,21 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         </div>
       )}
 
-      <div style={{ position: 'relative', display: 'inline-block' }}>
-        {/* Pointer */}
-        <div style={{
-          position: 'absolute', top: -10, left: '50%',
-          transform: 'translateX(-50%)',
-          width: 0, height: 0,
-          borderLeft: '10px solid transparent',
-          borderRight: '10px solid transparent',
-          borderTop: '24px solid #f59e0b',
-          filter: 'drop-shadow(0 2px 8px rgba(245,158,11,0.8))',
-          zIndex: 10,
-        }} />
+      <div style={{ position: 'relative', display: 'inline-block', zIndex: 10 }}>
+        {/* Map Pin Pointer */}
+        <svg width="40" height="50" viewBox="0 0 24 30" style={{
+          position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)',
+          filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))', zIndex: 20
+        }}>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 8.4 12 18 12 18s12-9.6 12-18c0-6.627-5.373-12-12-12z" fill="#ffffff" stroke="#1a1a1a" strokeWidth="1.5"/>
+          <circle cx="12" cy="12" r="4" fill="#1a1a1a"/>
+        </svg>
         <canvas
           ref={canvasRef}
-          style={{ borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default' }}
+          style={{ 
+            borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default',
+            filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))'
+          }}
           onClick={spin}
         />
       </div>
@@ -269,12 +264,25 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       {!sessionMode && !spinning && !done && (
         <button onClick={spin} style={{
           padding: '0.875rem 2.5rem',
-          background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
-          border: 'none', borderRadius: '0.875rem',
-          color: '#fff', fontWeight: 700, fontSize: '1rem', cursor: 'pointer',
-          boxShadow: '0 0 20px rgba(124,58,237,0.4)',
-        }}>
-          Spin
+          background: '#ffffff',
+          border: '2px solid #1a1a1a', 
+          borderRadius: '999px',
+          color: '#1a1a1a', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer',
+          boxShadow: '4px 4px 0 #1a1a1a',
+          transition: 'transform 0.1s, box-shadow 0.1s',
+          textTransform: 'uppercase',
+          letterSpacing: '1px'
+        }}
+        onMouseDown={e => {
+          e.currentTarget.style.transform = 'translate(2px, 2px)'
+          e.currentTarget.style.boxShadow = '2px 2px 0 #1a1a1a'
+        }}
+        onMouseUp={e => {
+          e.currentTarget.style.transform = 'translate(0, 0)'
+          e.currentTarget.style.boxShadow = '4px 4px 0 #1a1a1a'
+        }}
+        >
+          Spin Now
         </button>
       )}
       {!sessionMode && spinning && (
