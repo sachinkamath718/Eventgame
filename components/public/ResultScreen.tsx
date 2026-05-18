@@ -55,7 +55,8 @@ export default function ResultScreen({
     : `Just participated in the Zeliot Lucky Draw event — what a fun experience! 🎯 Check out Zeliot: ${ZELIOT_LINKEDIN}`
 
   const shareCaption  = linkedinShareText || defaultCaption
-  const shareUrl      = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(sharePageUrl)}&summary=${encodeURIComponent(shareCaption)}`
+  // Use the feed shareActive endpoint to properly pre-fill the post text
+  const shareUrl      = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(shareCaption)}`
 
   return (
     <div style={{ width: '100%', maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
