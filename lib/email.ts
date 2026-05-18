@@ -1,6 +1,17 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Create a transporter using environment variables
+// For Gmail, use host: 'smtp.gmail.com', port: 465, secure: true
+// For Outlook, use host: 'smtp.office365.com', port: 587, secure: false
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: process.env.SMTP_SECURE === 'false' ? false : true, 
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+})
 
 export async function sendResultEmail(
   toEmail: string,
@@ -9,8 +20,8 @@ export async function sendResultEmail(
   won: boolean,
   prizeName: string
 ) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY is not set. Skipping email.')
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('SMTP credentials are not set. Skipping email.')
     return
   }
 
@@ -42,19 +53,14 @@ export async function sendResultEmail(
     `
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'Zeliot Events <marketing@zeliot.in>',
+    const info = await transporter.sendMail({
+      from: `"Zeliot Events" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to: toEmail,
       subject,
       html,
     })
-
-    if (error) {
-      console.error('Error sending Resend email:', error)
-    } else {
-      console.log('Email sent successfully:', data)
-    }
+    console.log('Email sent successfully:', info.messageId)
   } catch (err) {
-    console.error('Unexpected error sending email:', err)
+    console.error('Unexpected error sending email via SMTP:', err)
   }
 }
