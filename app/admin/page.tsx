@@ -95,20 +95,32 @@ export default function AdminDashboard() {
 
       <main style={{ padding: '2rem', maxWidth: 900, margin: '0 auto' }}>
         {/* Summary stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-          {[
-            { label: 'Total Events', value: events.length, icon: '🎪' },
-            { label: 'Active Events', value: events.filter(e => e.is_active).length, icon: '🟢' },
-            { label: 'Inactive', value: events.filter(e => !e.is_active).length, icon: '⚫' },
-          ].map(stat => (
-            <div key={stat.label} className="glass-card" style={{ padding: '1.25rem' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{stat.icon}</div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.75rem' }}>
-                {stat.value}
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'rgba(248,250,252,0.45)' }}>{stat.label}</div>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '1.5rem 2rem', background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.06)', borderRadius: '1rem',
+          marginBottom: '2rem', backdropFilter: 'blur(10px)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: 'rgba(248,250,252,0.45)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total Events</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-heading)', color: '#f8fafc' }}>
+              {events.length}
             </div>
-          ))}
+          </div>
+          <div style={{ display: 'flex', gap: '2rem', textAlign: 'right' }}>
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(248,250,252,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Active</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#4ade80' }}>
+                {events.filter(e => e.is_active).length}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(248,250,252,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Draft</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'rgba(248,250,252,0.6)' }}>
+                {events.filter(e => !e.is_active).length}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
@@ -186,30 +198,34 @@ export default function AdminDashboard() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0 }}>
-                  <ActionBtn title="Show QR" onClick={() => setQrEvent(event)}>📱</ActionBtn>
-                  <Link
-                    href={`/admin/events/${event.id}/session`}
-                    style={actionBtnStyle}
-                    title="Grand Prize Session"
-                  >🏆</Link>
-                  <Link
-                    href={`/admin/events/${event.id}`}
-                    style={actionBtnStyle}
-                    title="Edit Event"
-                  >✏️</Link>
+                  <ActionBtn title="Show QR" onClick={() => setQrEvent(event)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M9 14v7M14 9h7M9 9h7v7H9z"/></svg>
+                  </ActionBtn>
+                  
+                  <Link href={`/admin/events/${event.id}/session`} style={actionBtnStyle} title="Grand Prize Session">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                  </Link>
+                  
+                  <Link href={`/admin/events/${event.id}`} style={actionBtnStyle} title="Edit Event">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                  </Link>
+                  
                   <ActionBtn
                     title={event.is_active ? 'Deactivate' : 'Activate'}
                     onClick={() => toggleActive(event)}
                     style={{ color: event.is_active ? '#4ade80' : 'rgba(248,250,252,0.35)' }}
                   >
-                    {event.is_active ? '🟢' : '⚫'}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                   </ActionBtn>
+                  
                   <ActionBtn
                     title="Delete"
                     onClick={() => deleteEvent(event.id)}
                     style={{ color: 'rgba(248,113,113,0.5)' }}
-                    hoverColor="rgba(248,113,113,0.8)"
-                  >🗑️</ActionBtn>
+                    hoverColor="rgba(248,113,113,0.15)"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </ActionBtn>
                 </div>
               </div>
             ))}
