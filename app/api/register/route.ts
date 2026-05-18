@@ -172,6 +172,18 @@ export async function POST(req: NextRequest) {
 
     if (regErr) return NextResponse.json({ error: regErr.message }, { status: 500 })
 
+    // Import the email utility dynamically or at the top
+    const { sendResultEmail } = await import('@/lib/email')
+    
+    // Trigger email asynchronously so user doesn't wait
+    sendResultEmail(
+      email,
+      name || 'Participant',
+      event.name || 'Lucky Draw',
+      won,
+      prize?.name || 'Better luck next time'
+    ).catch(err => console.error('Failed to trigger email:', err))
+
     return NextResponse.json({
       registrationId:   reg.id,
       prizeName:        reg.prize_name        ?? 'Thanks for playing!',
