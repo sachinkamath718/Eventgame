@@ -33,6 +33,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   const wheelPrizes = prizes
     .filter(p => p.is_grand_prize !== true)
     .sort((a, b) => Number(a.rank) - Number(b.rank))
+    .filter((p, i, arr) => i === 0 || p.rank !== arr[i - 1].rank)
     .slice(0, 8)
 
   const segCount = Math.max(wheelPrizes.length, 1)

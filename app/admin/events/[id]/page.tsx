@@ -11,8 +11,9 @@ const GAMES = [
 ]
 
 type FieldMapping = { formLabel: string; fieldKey: string; required: boolean; fieldType: string; options?: string; enabled?: boolean }
-type Rule  = { label: string; designations: string; prize_rank: number; win_probability: number }
+type Rule  = { id?: string; label: string; designations: string; prize_rank: number; win_probability: number }
 type Prize = {
+  id?: string
   rank: number; name: string; description: string; image_url: string
   quantity: number; is_consolation: boolean; is_grand_prize: boolean
 }
@@ -85,6 +86,7 @@ export default function EditEventPage() {
       setHeading(ui.heading || ''); setLogo(ui.logoUrl || ''); setFooter(ui.footerText || '')
       if (ev.prizes?.length) {
         setPrizes(ev.prizes.map((p: Prize) => ({
+          id: p.id,
           rank: p.rank, name: p.name, description: p.description || '',
           image_url: p.image_url || '', quantity: p.quantity ?? 1,
           is_consolation: p.is_consolation,
@@ -92,7 +94,8 @@ export default function EditEventPage() {
         })))
       }
       if (ev.designation_rules?.length) {
-        setRules(ev.designation_rules.map((r: { label: string; designations: string[]; prize_rank: number; win_probability: number }) => ({
+        setRules(ev.designation_rules.map((r: { id: string; label: string; designations: string[]; prize_rank: number; win_probability: number }) => ({
+          id: r.id,
           label: r.label || '', designations: (r.designations || []).join(', '),
           prize_rank: r.prize_rank, win_probability: r.win_probability,
         })))
@@ -119,6 +122,7 @@ export default function EditEventPage() {
           form_fields: fields,
           prizes: prizes.map(p => ({ ...p, is_grand_prize: p.rank === 1 ? true : p.is_grand_prize })),
           designation_rules: rules.map(r => ({
+            id: r.id,
             label: r.label,
             designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
             prize_rank: r.prize_rank, win_probability: r.win_probability,

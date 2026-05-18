@@ -64,16 +64,14 @@ export async function PUT(req: NextRequest) {
   await supabase.from('events').update(eventData).eq('id', id)
 
   if (prizes) {
-    await supabase.from('prizes').delete().eq('event_id', id)
     if (prizes.length) {
-      await supabase.from('prizes').insert(prizes.map((p: Record<string, unknown>) => ({ ...p, event_id: id })))
+      await supabase.from('prizes').upsert(prizes.map((p: Record<string, unknown>) => ({ ...p, event_id: id })))
     }
   }
 
   if (designation_rules) {
-    await supabase.from('designation_rules').delete().eq('event_id', id)
     if (designation_rules.length) {
-      await supabase.from('designation_rules').insert(
+      await supabase.from('designation_rules').upsert(
         designation_rules.map((r: Record<string, unknown>) => ({ ...r, event_id: id }))
       )
     }
