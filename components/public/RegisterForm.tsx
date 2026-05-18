@@ -87,7 +87,7 @@ export default function RegisterForm({ event }: { event: LuckyEvent }) {
       return (
         <div style={{ textAlign: 'center', padding: '2rem' }}>
           <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🎰</div>
-          <p style={{ color: 'rgba(248,250,252,0.7)', fontWeight: 600 }}>Joining the Grand Prize Draw…</p>
+          <p style={{ color: 'rgba(248,250,252,0.7)', fontWeight: 600 }}>Joining the Live Draw…</p>
         </div>
       )
     }

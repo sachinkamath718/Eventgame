@@ -251,7 +251,7 @@ function ResultOverlay({ won, prizeName }: { won: boolean; prizeName: string }) 
             color: 'rgba(255,255,255,0.6)', zIndex: 1,
           }}
         >
-          Grand Prize:
+          Prize:
         </motion.p>
 
         <motion.p
@@ -332,7 +332,7 @@ function ResultOverlay({ won, prizeName }: { won: boolean; prizeName: string }) 
           fontSize: '1.05rem', color: 'rgba(255,255,255,0.55)',
         }}
       >
-        Thanks for joining the Grand Prize Draw!
+        Thanks for joining the Live Draw!
       </motion.p>
 
       <motion.p
@@ -392,10 +392,10 @@ function SessionContent() {
           >
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
               <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, lineHeight: 1.2 }}>
-                You&apos;re in the Grand Prize Draw!
+                You&apos;re in the Live Draw!
               </h1>
               <p style={{ margin: 0, color: 'rgba(255,255,255,0.55)', fontSize: '0.95rem' }}>
-                Stay on this screen — the host is picking a winner live!
+                Stay on this screen — the winner is being selected live!
               </p>
 
               <SpinningWheel onResult={handleResult} registrationId={regId} />
@@ -413,7 +413,7 @@ function SessionContent() {
                   }} />
                 ))}
                 <span style={{ marginLeft: '0.2rem', color: '#4ade80', fontSize: '0.82rem', fontWeight: 600 }}>
-                  LIVE SESSION — WAITING FOR HOST
+                  LIVE SESSION — WAITING FOR RESULT
                 </span>
               </div>
             </div>
