@@ -65,10 +65,22 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
   const stageIdx         = stages.indexOf(stage)
   const isGrandPrize     = !!(regResult?.isGrandPrizeSession)
 
-  async function handleGameDone() {
+  async function handleGameDone(gameWon?: boolean, gamePrizeName?: string) {
     if (!regResult) { setStage('result'); return }
+    
+    // If the game component already knows the final result (e.g. from websocket), use it directly
+    if (gameWon !== undefined) {
+      setRegResult(prev => prev ? {
+        ...prev,
+        won: gameWon,
+        prizeName: gamePrizeName ?? prev.prizeName,
+      } : prev)
+      setStage('result')
+      return
+    }
+
     try {
-      const res  = await fetch(`/api/check-registration?id=${regResult.registrationId}`)
+      const res  = await fetch(`/api/check-registration?id=${regResult.registrationId}&t=${Date.now()}`, { cache: 'no-store' })
       const data = await res.json()
       if (data.registration) {
         const r = data.registration

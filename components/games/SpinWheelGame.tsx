@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
-interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: () => void; sessionMode?: boolean; registrationId?: string }
+interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: (won?: boolean, prizeName?: string) => void; sessionMode?: boolean; registrationId?: string }
 
 const SEG_COLORS = ['#ffffff', '#1a1a1a']
 
@@ -27,18 +27,11 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   // ── Filter: exclude ONLY items explicitly flagged is_grand_prize=true ──────
   // Do NOT exclude by rank — rank numbers in the DB vary per event.
   // Consolation prizes (is_consolation=true) STAY on the wheel.
-  let wheelPrizes = prizes
+  const wheelPrizes = prizes
     .filter(p => p.is_grand_prize !== true)
     .sort((a, b) => Number(a.rank) - Number(b.rank))
     .filter((p, i, arr) => i === 0 || p.rank !== arr[i - 1].rank)
-
-  const consPrize = wheelPrizes.find(p => p.is_consolation)
-  wheelPrizes = wheelPrizes.slice(0, 8)
-  
-  // Guarantee the consolation prize is visible on the wheel if it exists
-  if (consPrize && !wheelPrizes.some(p => p.is_consolation)) {
-    wheelPrizes[wheelPrizes.length - 1] = consPrize
-  }
+    .slice(0, 8)
 
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
@@ -174,7 +167,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
   }
 
-  function spinToTarget(isWon: boolean, rank: number) {
+  function spinToTarget(isWon: boolean, rank: number, overridePrizeName?: string) {
     const idx         = getTargetIdx(isWon, rank)
     const exactTarget = -Math.PI / 2 - (idx * segAngle + segAngle / 2)
     const delta       = (norm(exactTarget) - norm(spinRef.current) + 2 * Math.PI) % (2 * Math.PI)
@@ -194,7 +187,8 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         drawWheel(norm(absStart + totalTravel))
         setSpinning(false)
         setDone(true)
-        setTimeout(() => onDone(), 1400)
+        const pName = overridePrizeName || wheelPrizes[idx]?.name || 'Grand Prize'
+        setTimeout(() => onDone(isWon, pName), 1400)
       }
     }
     rafRef.current = requestAnimationFrame(animate)
@@ -216,7 +210,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         (payload) => {
           const u = payload.new as Record<string, unknown>
           stopLoop()
-          spinToTarget(u.game_result === 'won', (u.prize_rank_won as number) ?? segCount)
+          spinToTarget(u.game_result === 'won', (u.prize_rank_won as number) ?? segCount, u.prize_name as string)
         })
       .subscribe()
     return () => { stopLoop(); supabase.removeChannel(ch) }
