@@ -48,15 +48,26 @@ export default function ResultScreen({
   // Follow: always goes to Zeliot's page (override any DB setting)
   const followUrl = linkedinCompanyUrl || ZELIOT_LINKEDIN
 
-  // Share: build a Zeliot-branded caption
-  const sharePageUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  // Share: build a highly engaging Zeliot-branded caption
   const defaultCaption = won
-    ? `🎉 I just won "${prizeName}" at the Zeliot event! Huge thanks to the team at Zeliot for organising such a fun lucky draw. 🙌\n\nCome check out what Zeliot is up to: ${ZELIOT_LINKEDIN}`
-    : `Just participated in the Zeliot Lucky Draw event — what a fun experience! 🎯 Check out Zeliot: ${ZELIOT_LINKEDIN}`
+    ? `🎉 Thrilled to share that I just won "${prizeName}" at the Zeliot Lucky Draw! Huge shoutout to the amazing team at Zeliot for organizing such an engaging and innovative event. 🚀 \n\nIf you haven't checked out what they're building in the connected mobility space, you definitely should! 👇\n\n${ZELIOT_LINKEDIN}\n\n#Zeliot #Innovation #ConnectedMobility`
+    : `🎯 Just had a blast participating in the Zeliot Lucky Draw! Even though I didn't snag the grand prize this time, I absolutely loved the gamified experience.\n\nKudos to the Zeliot team for creating such a fun event! 🚀\n\n${ZELIOT_LINKEDIN}\n\n#Zeliot #ConnectedMobility #Innovation`
 
   const shareCaption  = linkedinShareText || defaultCaption
-  // Use the feed shareActive endpoint to properly pre-fill the post text
-  const shareUrl      = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(shareCaption)}`
+
+  const handleShareClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareCaption)
+        alert('✨ Caption copied to clipboard!\n\nPaste it into your LinkedIn post to share your experience.')
+      }
+    } catch (err) {
+      console.error('Failed to copy', err)
+    }
+    // Always open LinkedIn after attempting to copy
+    window.open('https://www.linkedin.com/feed/', '_blank')
+  }
 
   return (
     <div style={{ width: '100%', maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -177,15 +188,16 @@ export default function ResultScreen({
           }}>
             <LinkedInIcon /> Follow Zeliot
           </a>
-          {/* Share — posts win/lose caption */}
-          <a href={shareUrl} target="_blank" rel="noopener noreferrer" style={{
+          {/* Share — copies text to clipboard and opens LinkedIn */}
+          <button onClick={handleShareClick} style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '0.5rem', padding: '0.7rem',
             background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
-            borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem', textDecoration: 'none',
+            borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem', 
+            cursor: 'pointer', fontFamily: 'inherit',
           }}>
             <LinkedInIcon /> Share
-          </a>
+          </button>
         </div>
 
         {/* Preview the share caption */}
