@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
       })
     )
 
-    const genericDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'live.com', 'msn.com', 'ymail.com']
+    const genericDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'icloud.com', 'aol.com', 'live.com', 'msn.com', 'ymail.com']
     const emailDomain = email.split('@')[1] || ''
     const isGenericEmail = genericDomains.includes(emailDomain)
 
