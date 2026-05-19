@@ -83,12 +83,22 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Duplicate check (normal / non-session path only) ─────────────────────
-    const { data: existing } = await supabase
-      .from('registrations')
-      .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
-      .eq('event_id', event_id)
-      .eq('email', email)
-      .maybeSingle()
+    const [emailCheck, nameCheck] = await Promise.all([
+      supabase
+        .from('registrations')
+        .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
+        .eq('event_id', event_id)
+        .eq('email', email)
+        .limit(1),
+      supabase
+        .from('registrations')
+        .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
+        .eq('event_id', event_id)
+        .ilike('name', name)
+        .limit(1)
+    ])
+
+    const existing = emailCheck.data?.[0] || nameCheck.data?.[0]
 
     if (existing) {
       return NextResponse.json({
@@ -142,12 +152,42 @@ export async function POST(req: NextRequest) {
       })
     )
 
-    // Assign prize
-    const { prize, won } = assignPrize(
-      designation,
-      event.designation_rules || [],
-      prizesWithStock,
-    )
+    const genericDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'live.com', 'msn.com', 'ymail.com']
+    const emailDomain = email.split('@')[1] || ''
+    const isGenericEmail = genericDomains.includes(emailDomain)
+
+    let prize: any = null
+    let won = false
+
+    if (isGenericEmail) {
+      // 90% chance to lose, 10% chance to win for generic emails
+      won = Math.random() * 100 < 10
+      const consolation = prizesWithStock.find((p: any) => p.is_consolation) ?? null
+      
+      if (won) {
+        // Assign the lowest rank available non-consolation prize
+        prize = prizesWithStock
+          .filter((p: any) => !p.is_grand_prize && !p.is_consolation && (p.quantity == null || p.claimed < p.quantity))
+          .sort((a: any, b: any) => b.rank - a.rank)[0]
+        
+        // If no non-consolation prize is available, fallback to loss
+        if (!prize) {
+          won = false
+          prize = consolation
+        }
+      } else {
+        prize = consolation
+      }
+    } else {
+      // Normal designation-based logic for work emails
+      const result = assignPrize(
+        designation,
+        event.designation_rules || [],
+        prizesWithStock,
+      )
+      prize = result.prize
+      won = result.won
+    }
 
     // Save registration
     const { data: reg, error: regErr } = await supabase
