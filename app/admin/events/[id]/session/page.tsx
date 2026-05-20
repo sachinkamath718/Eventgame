@@ -30,6 +30,7 @@ export default function AdminSessionPage() {
   const [manualName, setManualName]         = useState('')
   const [addingManual, setAddingManual]     = useState(false)
   const [grandPrizeStock, setGrandPrizeStock] = useState<{quantity: number, claimed: number} | null>(null)
+  const [prizeStock, setPrizeStock]           = useState<Array<{name: string; rank: number; quantity: number; claimed: number; is_grand_prize: boolean}>>([])
 
   const supabase   = createClient()
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -48,6 +49,7 @@ export default function AdminSessionPage() {
     setSession(s)
     setParticipants(data.participants ?? [])
     setGrandPrizeStock(data.grandPrizeStock ?? null)
+    setPrizeStock(data.prizeStock ?? [])
 
     if (s?.winner_registration_id && !s.is_active) {
       const fromList = (data.participants as Participant[]).find(
@@ -310,6 +312,45 @@ export default function AdminSessionPage() {
         maxWidth: 720, margin: '0 auto', padding: '2rem 1.5rem',
         display: 'flex', flexDirection: 'column', gap: '1.5rem',
       }}>
+
+        {/* Prize Stock Panel */}
+        {prizeStock.length > 0 && (
+          <div style={{
+            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '1rem', padding: '1rem 1.25rem',
+          }}>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.72rem', fontWeight: 700, color: 'rgba(248,250,252,0.4)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Prize Stock</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.625rem' }}>
+              {prizeStock.map(p => {
+                const remaining = p.quantity - p.claimed
+                const soldOut = remaining <= 0
+                const low = !soldOut && remaining <= 2
+                return (
+                  <div key={p.rank} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    padding: '0.5rem 0.875rem',
+                    background: soldOut ? 'rgba(248,113,113,0.08)' : low ? 'rgba(251,191,36,0.08)' : 'rgba(74,222,128,0.06)',
+                    border: `1px solid ${soldOut ? 'rgba(248,113,113,0.25)' : low ? 'rgba(251,191,36,0.25)' : 'rgba(74,222,128,0.2)'}`,
+                    borderRadius: '0.75rem', minWidth: 100,
+                  }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.4)', marginBottom: '0.2rem' }}>
+                      {p.is_grand_prize ? '🏆 ' : ''}{p.name}
+                    </span>
+                    <span style={{
+                      fontSize: '1.1rem', fontWeight: 800,
+                      color: soldOut ? '#f87171' : low ? '#fbbf24' : '#4ade80',
+                    }}>
+                      {soldOut ? 'Sold Out' : `${remaining} left`}
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: 'rgba(248,250,252,0.3)' }}>
+                      {p.claimed}/{p.quantity} claimed
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Winner card */}
         {winner && (

@@ -40,30 +40,47 @@ export async function GET(req: NextRequest) {
     .gte('created_at', session.started_at)
     .order('created_at', { ascending: false })
 
-  // Look up grand prize stock
+  // Look up prize stock for all prizes (for the stock panel)
   const { data: prizes } = await supabase
     .from('prizes')
-    .select('id, name, quantity, is_grand_prize, rank')
+    .select('id, name, quantity, is_grand_prize, is_consolation, rank')
     .eq('event_id', eventId)
+    .order('rank', { ascending: true })
 
-  let grandPrize = null
+  let prizeStock: Array<{ name: string; rank: number; quantity: number; claimed: number; is_grand_prize: boolean }> = []
   let grandPrizeStock = { quantity: 0, claimed: 0 }
-  
+
   if (prizes && prizes.length > 0) {
-    grandPrize = prizes.find(p => p.is_grand_prize) || prizes.find(p => p.rank === 1)
-    if (grandPrize && grandPrize.quantity != null) {
-      const { count } = await supabase
-        .from('registrations')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_id', eventId)
-        .eq('game_result', 'won')
-        .eq('prize_id', grandPrize.id)
-      
-      grandPrizeStock = { quantity: grandPrize.quantity, claimed: count || 0 }
+    // Count claimed per rank
+    const { data: claimedRows } = await supabase
+      .from('registrations')
+      .select('prize_rank_won')
+      .eq('event_id', eventId)
+      .eq('game_result', 'won')
+      .not('prize_rank_won', 'is', null)
+
+    const rankClaimed: Record<number, number> = {}
+    for (const row of claimedRows ?? []) {
+      if (row.prize_rank_won != null) {
+        rankClaimed[row.prize_rank_won] = (rankClaimed[row.prize_rank_won] ?? 0) + 1
+      }
     }
+
+    prizeStock = prizes
+      .filter(p => !p.is_consolation && p.quantity != null)
+      .map(p => ({
+        name: p.name,
+        rank: p.rank,
+        quantity: p.quantity,
+        claimed: rankClaimed[p.rank] ?? 0,
+        is_grand_prize: !!p.is_grand_prize,
+      }))
+
+    const gp = prizes.find(p => p.is_grand_prize) || prizes.find(p => p.rank === 1)
+    if (gp) grandPrizeStock = { quantity: gp.quantity ?? 0, claimed: rankClaimed[gp.rank] ?? 0 }
   }
 
-  return NextResponse.json({ session, participants: participants ?? [], grandPrizeStock })
+  return NextResponse.json({ session, participants: participants ?? [], grandPrizeStock, prizeStock })
 }
 
 // POST — start session

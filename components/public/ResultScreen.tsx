@@ -99,7 +99,10 @@ export default function ResultScreen({
   }
 
   function openLinkedIn() {
-    window.open('https://www.linkedin.com/feed/?shareActive=true', '_blank')
+    // shareArticle pre-fills the summary/text into LinkedIn's share dialog
+    const encoded = encodeURIComponent(shareCaption)
+    const url = `https://www.linkedin.com/shareArticle?mini=true&url=https%3A%2F%2Fzeliot.in&title=Zeliot+Event&summary=${encoded}`
+    window.open(url, '_blank')
     setShareModal(false)
   }
 
