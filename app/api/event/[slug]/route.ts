@@ -74,7 +74,8 @@ export async function GET(
 
   // Attach claimed count to each prize
   if (Array.isArray(event.prizes)) {
-    event.prizes = event.prizes.map((p: { id: string }) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(event as any).prizes = (event.prizes as any[]).map((p) => ({
       ...p,
       claimed: claimedMap[p.id] ?? 0,
     }))
