@@ -8,7 +8,8 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
-  const { data: event, error } = await supabase
+  // Try full select (includes optional new columns)
+  let { data: event, error } = await supabase
     .from('events')
     .select(`
       id,
@@ -40,8 +41,24 @@ export async function GET(
     .eq('slug', slug)
     .single()
 
+  // Fallback: if new columns don't exist yet, retry with minimal select
+  if (error) {
+    console.warn('[event route] full select failed, retrying with fallback:', error.message)
+    const fallback = await supabase
+      .from('events')
+      .select(`
+        id, name, slug, game_type, is_active, form_fields, ui_config,
+        prizes ( id, rank, name, description, image_url, is_consolation, is_grand_prize ),
+        designation_rules ( designations, prize_rank, win_probability )
+      `)
+      .eq('slug', slug)
+      .single()
+    event = fallback.data
+    error = fallback.error
+  }
+
   if (error || !event) {
-    console.error('[event route] supabase error:', error?.message, '| code:', error?.code, '| slug:', slug)
+    console.error('[event route] fatal:', error?.message, '| slug:', slug)
     return NextResponse.json({ error: 'Event not found', detail: error?.message }, { status: 404 })
   }
 
