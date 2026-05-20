@@ -9,7 +9,11 @@ export async function GET(
   const supabase = createServiceClient()
 
   // Try full select (includes optional new columns)
-  let { data: event, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let event: any = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let error: any = null
+  ;({ data: event, error } = await supabase
     .from('events')
     .select(`
       id,
@@ -39,7 +43,7 @@ export async function GET(
       )
     `)
     .eq('slug', slug)
-    .single()
+    .single())
 
   // Fallback: if new columns don't exist yet, retry with minimal select
   if (error) {
