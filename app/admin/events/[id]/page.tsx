@@ -43,6 +43,7 @@ export default function EditEventPage() {
   const [winners, setWinners]         = useState<Winner[]>([])
   const [winnersLoading, setWinnersLoading] = useState(false)
   const [handingOut, setHandingOut]   = useState<string | null>(null)
+  const [winnerSearch, setWinnerSearch] = useState('')
 
   const [name, setName]         = useState('')
   const [slug, setSlug]         = useState('')
@@ -638,6 +639,25 @@ export default function EditEventPage() {
                 ))}
               </div>
 
+              {/* Search bar */}
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.85rem', color: 'rgba(248,250,252,0.35)', pointerEvents: 'none' }}>🔍</span>
+                <input
+                  value={winnerSearch}
+                  onChange={e => setWinnerSearch(e.target.value)}
+                  placeholder="Search by name or email…"
+                  style={{
+                    width: '100%', padding: '0.55rem 0.75rem 0.55rem 2.25rem',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '0.65rem', color: '#f8fafc', fontSize: '0.82rem',
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+                {winnerSearch && (
+                  <button onClick={() => setWinnerSearch('')} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'rgba(248,250,252,0.4)', cursor: 'pointer', fontSize: '0.85rem' }}>✕</button>
+                )}
+              </div>
+
               {winnersLoading ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'rgba(248,250,252,0.3)', fontSize: '0.875rem' }}>Loading…</div>
               ) : winners.length === 0 ? (
@@ -654,11 +674,15 @@ export default function EditEventPage() {
                     ...prizes.filter(p => p.is_consolation),
                   ].map(p => {
                     const isConsolation = !!p.is_consolation
-                    const colWinners = winners.filter(w =>
-                      isConsolation
+                    const q = winnerSearch.trim().toLowerCase()
+                    const colWinners = winners.filter(w => {
+                      const matchesPrize = isConsolation
                         ? w.game_result !== 'won'
                         : w.prize_rank_won === p.rank && w.game_result === 'won'
-                    )
+                      if (!matchesPrize) return false
+                      if (!q) return true
+                      return w.name.toLowerCase().includes(q) || (w.email ?? '').toLowerCase().includes(q)
+                    })
                     const totalWon  = colWinners.length   // all digital winners (for stock calc)
                     const handedOut = colWinners.filter(w => w.prize_handed_out).length  // physically given out (tick ✓)
                     const remaining = isConsolation ? null : Math.max(0, p.quantity - totalWon)
