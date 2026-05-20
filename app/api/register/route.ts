@@ -175,9 +175,21 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // Normal designation-based logic for work emails
+      // ⚠️ DB stores designations as a comma-separated STRING — normalize to array
+      const normalizedRules = (event.designation_rules || []).map((r: {
+        designations: string | string[]
+        prize_rank: number
+        win_probability: number
+      }) => ({
+        ...r,
+        designations: Array.isArray(r.designations)
+          ? r.designations
+          : r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
+      }))
+
       const result = assignPrize(
         designation,
-        event.designation_rules || [],
+        normalizedRules,
         prizesWithStock,
       )
       prize = result.prize
