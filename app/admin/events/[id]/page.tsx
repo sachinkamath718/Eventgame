@@ -54,6 +54,7 @@ export default function EditEventPage() {
   const [heading, setHeading]   = useState('')
   const [logoUrl, setLogo]      = useState('')
   const [footerText, setFooter] = useState('')
+  const [boothNumber, setBooth] = useState('')
 
   const [prizes, setPrizes] = useState<Prize[]>([
     { rank: 1, name: 'Grand Prize',           description: '', image_url: '', quantity: 1,  is_consolation: false, is_grand_prize: true  },
@@ -84,6 +85,7 @@ export default function EditEventPage() {
       setBg(ui.bgColor || '#0a0a1a'); setBg2(ui.bgColor2 || '#312e81')
       setAccent(ui.accentColor || '#f59e0b')
       setHeading(ui.heading || ''); setLogo(ui.logoUrl || ''); setFooter(ui.footerText || '')
+      setBooth(ev.booth_number || '')
       if (ev.prizes?.length) {
         setPrizes(ev.prizes.map((p: Prize) => ({
           id: p.id,
@@ -118,6 +120,7 @@ export default function EditEventPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id, name, slug, is_active: isActive, game_type: gameType,
+          booth_number: boothNumber,
           ui_config: { bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText, bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)` },
           form_fields: fields,
           prizes: prizes.map(p => ({ ...p, is_grand_prize: p.rank === 1 ? true : p.is_grand_prize })),
@@ -285,6 +288,11 @@ export default function EditEventPage() {
                 <label style={L}>URL Slug</label>
                 <input style={F} value={slug} onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} />
                 <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.25rem', display: 'block' }}>Event URL: {eventUrl}</span>
+              </div>
+              <div>
+                <label style={L}>Booth Number</label>
+                <input style={F} value={boothNumber} placeholder="e.g. B12, Hall 3, Gate A" onChange={e => setBooth(e.target.value)} />
+                <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.25rem', display: 'block' }}>Shown on winner’s result screen as “Show this at Booth [X]”</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <label style={{ ...L, marginBottom: 0 }}>Active</label>
@@ -565,9 +573,14 @@ export default function EditEventPage() {
                             <span style={{ fontWeight: 600, fontSize: '0.78rem', color: '#f8fafc' }}>{w.name}</span>
                             {w.is_grand_prize_winner && <span style={{ fontSize: '0.6rem', background: 'rgba(245,158,11,0.2)', color: '#fcd34d', padding: '0.05rem 0.35rem', borderRadius: '0.25rem', fontWeight: 700 }}>Grand</span>}
                           </div>
-                          <div style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.38)', marginTop: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.38)', marginTop: '0.05rem' }}>
                             {w.designation}{w.company ? ` · ${w.company}` : ''}
                           </div>
+                          {w.email && (
+                            <div style={{ fontSize: '0.66rem', color: 'rgba(148,163,184,0.65)', marginTop: '0.05rem' }}>
+                              {w.email}
+                            </div>
+                          )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '0.72rem', color: '#fbbf24', fontWeight: 600 }}>{w.prize_name}</span>
                             {qtyLeft !== null && (

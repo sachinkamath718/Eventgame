@@ -8,9 +8,6 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
-  // FIX: removed .eq('is_active', true) — events locked during a grand prize session
-  // (is_active=false) must still be fetchable so participants can see the waiting screen.
-  // The register API handles the lock by returning 423 when is_active=false.
   const { data: event, error } = await supabase
     .from('events')
     .select(`
@@ -21,12 +18,16 @@ export async function GET(
       is_active,
       form_fields,
       ui_config,
+      booth_number,
+      linkedin_company_url,
+      linkedin_share_text,
       prizes (
         id,
         rank,
         name,
         description,
         image_url,
+        quantity,
         is_consolation,
         is_grand_prize
       ),
@@ -44,9 +45,39 @@ export async function GET(
     return NextResponse.json({ error: 'Event not found', detail: error?.message }, { status: 404 })
   }
 
-  // Sort prizes by rank so wheel segments are always in consistent order
+  // Sort prizes by rank
   if (Array.isArray(event.prizes)) {
     event.prizes.sort((a: { rank: number }, b: { rank: number }) => a.rank - b.rank)
+  }
+
+  // ── Hydrate real-time claimed counts for each prize ──────────────────────
+  // This lets the wheel filter out prizes that are genuinely out of stock
+  const prizeIds = (event.prizes as Array<{ id: string; is_consolation: boolean; quantity?: number }> | null)
+    ?.filter(p => !p.is_consolation && p.quantity != null)
+    .map(p => p.id) ?? []
+
+  let claimedMap: Record<string, number> = {}
+  if (prizeIds.length > 0) {
+    const { data: claimedRows } = await supabase
+      .from('registrations')
+      .select('prize_id')
+      .eq('event_id', event.id)
+      .eq('game_result', 'won')
+      .in('prize_id', prizeIds)
+
+    for (const row of claimedRows ?? []) {
+      if (row.prize_id) {
+        claimedMap[row.prize_id] = (claimedMap[row.prize_id] ?? 0) + 1
+      }
+    }
+  }
+
+  // Attach claimed count to each prize
+  if (Array.isArray(event.prizes)) {
+    event.prizes = event.prizes.map((p: { id: string }) => ({
+      ...p,
+      claimed: claimedMap[p.id] ?? 0,
+    }))
   }
 
   return NextResponse.json({ event })

@@ -3,32 +3,54 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Prize { rank: number; name: string; is_consolation: boolean; is_grand_prize: boolean }
-interface Props { prizes: Prize[]; targetRank: number; won: boolean; onDone: (won?: boolean, prizeName?: string) => void; sessionMode?: boolean; registrationId?: string }
+interface Prize {
+  rank: number
+  name: string
+  is_consolation: boolean
+  is_grand_prize: boolean
+  image_url?: string
+  quantity?: number
+  claimed?: number
+}
+
+interface Props {
+  prizes: Prize[]
+  targetRank: number
+  won: boolean
+  onDone: (won?: boolean, prizeName?: string) => void
+  sessionMode?: boolean
+  registrationId?: string
+}
 
 const SEG_COLORS = ['#ffffff', '#1a1a1a']
 
 function norm(r: number): number { return ((r % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) }
 
-// ── DPI-aware canvas size ──────────────────────────────────────────────────
-const CSS_SIZE  = 300
-const DPR       = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
-const BUF_SIZE  = CSS_SIZE * DPR          // actual pixel buffer
+const CSS_SIZE = 300
+const DPR      = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
+const BUF_SIZE = CSS_SIZE * DPR
 
 export default function SpinWheelGame({ prizes, targetRank, won, onDone, sessionMode, registrationId }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef  = useRef<HTMLCanvasElement>(null)
   const [spinning, setSpinning] = useState(false)
   const [done, setDone]         = useState(false)
-  const spinRef  = useRef(0)
-  const rafRef   = useRef<number>(0)
-  const loopRef  = useRef(false)
-  const supabase = createClient()
+  const spinRef    = useRef(0)
+  const rafRef     = useRef<number>(0)
+  const loopRef    = useRef(false)
+  const imgCache   = useRef<Map<string, HTMLImageElement>>(new Map())
+  const supabase   = createClient()
 
-  // ── Filter: exclude ONLY items explicitly flagged is_grand_prize=true ──────
-  // Do NOT exclude by rank — rank numbers in the DB vary per event.
-  // Consolation prizes (is_consolation=true) STAY on the wheel.
+  // Filter out grand prizes AND out-of-stock prizes from the wheel
   const wheelPrizes = prizes
-    .filter(p => p.is_grand_prize !== true)
+    .filter(p => {
+      if (p.is_grand_prize === true) return false
+      // Remove 0-stock non-consolation prizes
+      if (!p.is_consolation && p.quantity != null && p.quantity > 0) {
+        const claimed = p.claimed ?? 0
+        if (claimed >= p.quantity) return false
+      }
+      return true
+    })
     .sort((a, b) => Number(a.rank) - Number(b.rank))
     .filter((p, i, arr) => i === 0 || p.rank !== arr[i - 1].rank)
     .slice(0, 8)
@@ -36,19 +58,34 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   const segCount = Math.max(wheelPrizes.length, 1)
   const segAngle = (2 * Math.PI) / segCount
 
-  // ── Canvas draw — DPI-sharp, bold white text ────────────────────────────────
+  // Preload prize images
+  useEffect(() => {
+    wheelPrizes.forEach(p => {
+      if (p.image_url && !imgCache.current.has(p.image_url)) {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => {
+          imgCache.current.set(p.image_url!, img)
+          drawWheel(spinRef.current)
+        }
+        img.onerror = () => imgCache.current.set(p.image_url!, new Image()) // placeholder on error
+        img.src = p.image_url
+      }
+    })
+  }, [wheelPrizes.map(p => p.image_url).join(',')])  // eslint-disable-line
+
   function drawWheel(rot: number) {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx  = canvas.getContext('2d')!
-    const W    = BUF_SIZE          // pixel buffer size
-    const cx   = W / 2
-    const cy   = W / 2
-    const r    = cx - 14 * DPR    // leave ring margin
+    const ctx = canvas.getContext('2d')!
+    const W   = BUF_SIZE
+    const cx  = W / 2
+    const cy  = W / 2
+    const r   = cx - 14 * DPR
 
     ctx.clearRect(0, 0, W, W)
 
-    // ── Outer thick black ring ───────────────────────────────────────────────
+    // Outer thick black ring
     ctx.beginPath()
     ctx.arc(cx, cy, r + 8 * DPR, 0, 2 * Math.PI)
     ctx.fillStyle = '#1a1a1a'
@@ -57,7 +94,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     ctx.lineWidth = 2 * DPR
     ctx.stroke()
 
-    // ── Segments ──────────────────────────────────────────────────────────────
+    // Segments
     for (let i = 0; i < segCount; i++) {
       const start = rot + i * segAngle
       const end   = start + segAngle
@@ -75,43 +112,53 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
       ctx.lineWidth   = 1.5 * DPR
       ctx.stroke()
 
-      // ── Text: draw horizontally in each segment ──────────────────────────
-      // Move to the mid-arc point at 70% radius, rotate so text reads outward
       const midAngle = start + segAngle / 2
-      const textR    = r * 0.62                // place text at 62% radius
+      const prize    = wheelPrizes[i]
+      const imgUrl   = prize?.image_url
+      const img      = imgUrl ? imgCache.current.get(imgUrl) : undefined
 
-      ctx.save()
-      ctx.translate(cx + textR * Math.cos(midAngle), cy + textR * Math.sin(midAngle))
-      ctx.rotate(midAngle + Math.PI / 2)       // text reads clockwise outward
+      if (img && img.complete && img.naturalWidth > 0) {
+        // Draw prize image clipped inside the segment wedge
+        const imgR   = r * 0.55
+        const imgX   = cx + imgR * Math.cos(midAngle)
+        const imgY   = cy + imgR * Math.sin(midAngle)
+        const imgSz  = (segCount <= 4 ? 36 : segCount <= 6 ? 28 : 22) * DPR
 
-      // Dynamic font size: smaller when more segments
-      const fontSize = segCount <= 3 ? 13 * DPR
-                     : segCount <= 5 ? 11 * DPR
-                     : 9 * DPR
+        ctx.save()
+        // Clip to segment
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.arc(cx, cy, r - 2 * DPR, start, end)
+        ctx.closePath()
+        ctx.clip()
 
-      ctx.font      = `bold ${fontSize}px "Inter", "Helvetica Neue", Arial, sans-serif`
-      ctx.textAlign = 'center'
+        ctx.drawImage(img, imgX - imgSz / 2, imgY - imgSz / 2, imgSz, imgSz)
+        ctx.restore()
+      } else {
+        // Text fallback
+        const textR    = r * 0.62
+        const fontSize = segCount <= 3 ? 13 * DPR : segCount <= 5 ? 11 * DPR : 9 * DPR
 
-      // No shadow needed for high contrast
-      ctx.shadowColor   = 'transparent'
-      ctx.shadowBlur    = 0
+        ctx.save()
+        ctx.translate(cx + textR * Math.cos(midAngle), cy + textR * Math.sin(midAngle))
+        ctx.rotate(midAngle + Math.PI / 2)
+        ctx.font      = `bold ${fontSize}px "Inter", "Helvetica Neue", Arial, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.shadowColor  = 'transparent'
+        ctx.shadowBlur   = 0
+        ctx.fillStyle    = i % 2 === 0 ? '#1a1a1a' : '#ffffff'
 
-      // Alternating text color
-      ctx.fillStyle = i % 2 === 0 ? '#1a1a1a' : '#ffffff'
-
-      const raw    = wheelPrizes[i]?.name ?? `Prize ${i + 1}`
-      // Truncate to fit segment arc
-      const maxLen = segCount <= 3 ? 18 : segCount <= 5 ? 14 : 10
-      const label  = raw.length > maxLen ? raw.slice(0, maxLen - 1) + '…' : raw
-
-      ctx.fillText(label, 0, 0)
-      ctx.restore()
+        const raw    = prize?.name ?? `Prize ${i + 1}`
+        const maxLen = segCount <= 3 ? 18 : segCount <= 5 ? 14 : 10
+        const label  = raw.length > maxLen ? raw.slice(0, maxLen - 1) + '…' : raw
+        ctx.fillText(label, 0, 0)
+        ctx.restore()
+      }
     }
 
-    // ── Hub ───────────────────────────────────────────────────────────────────
+    // Hub
     ctx.shadowColor = 'transparent'
     ctx.shadowBlur  = 0
-
     ctx.beginPath()
     ctx.arc(cx, cy, 28 * DPR, 0, 2 * Math.PI)
     ctx.fillStyle = '#ffffff'
@@ -119,14 +166,12 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     ctx.strokeStyle = '#1a1a1a'
     ctx.lineWidth   = 4 * DPR
     ctx.stroke()
-
     ctx.fillStyle = '#1a1a1a'
     ctx.font      = `900 ${10 * DPR}px "Inter", Arial, sans-serif`
     ctx.textAlign = 'center'
     ctx.fillText('SPIN', cx, cy + 3 * DPR)
   }
 
-  // Set up canvas with correct buffer size once
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -137,7 +182,6 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
     drawWheel(spinRef.current)
   }, [wheelPrizes.length]) // eslint-disable-line
 
-  // ── Target resolution ─────────────────────────────────────────────────────
   function getTargetIdx(isWon: boolean, rank: number): number {
     if (!isWon) {
       const idx = wheelPrizes.findIndex(p => !!p.is_consolation)
@@ -224,7 +268,6 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
 
-      {/* Debug: show which prizes are on wheel */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
           Segments ({segCount}): {wheelPrizes.map(p => p.name).join(', ')}
@@ -242,7 +285,7 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         </svg>
         <canvas
           ref={canvasRef}
-          style={{ 
+          style={{
             borderRadius: '50%', display: 'block', cursor: !spinning && !done && !sessionMode ? 'pointer' : 'default',
             filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))'
           }}
@@ -266,12 +309,12 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
         <button onClick={spin} style={{
           padding: '0.875rem 2.5rem',
           background: '#ffffff',
-          border: '2px solid #1a1a1a', 
+          border: '2px solid #1a1a1a',
           borderRadius: '999px',
           color: '#1a1a1a', fontWeight: 900, fontSize: '1.1rem', cursor: 'pointer',
           boxShadow: '4px 4px 0 #1a1a1a',
           transition: 'transform 0.1s, box-shadow 0.1s',
-          textTransform: 'uppercase',
+          textTransform: 'uppercase' as const,
           letterSpacing: '1px'
         }}
         onMouseDown={e => {

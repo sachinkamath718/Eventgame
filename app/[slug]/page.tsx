@@ -20,10 +20,12 @@ interface LuckyEvent {
   prizes?: Array<{
     id: string; rank: number; name: string; description?: string
     image_url?: string; is_consolation: boolean; is_grand_prize: boolean
+    quantity?: number; claimed?: number
   }>
   designation_rules?: Array<{ designations: string[]; prize_rank: number; win_probability: number }>
   linkedin_company_url?: string
   linkedin_share_text?: string
+  booth_number?: string
 }
 export default function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)

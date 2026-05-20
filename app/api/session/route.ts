@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   // Only fetch participants who registered DURING this session window
   const { data: participants } = await supabase
     .from('registrations')
-    .select('id, name, designation, company, created_at')
+    .select('id, name, designation, company, email, created_at')
     .eq('event_id', eventId)
     .gte('created_at', session.started_at)
     .order('created_at', { ascending: false })

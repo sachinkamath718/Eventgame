@@ -74,6 +74,7 @@ export default function NewEventPage() {
       prize_rank: g.prize_rank, win_probability: g.win_probability,
     }))
   )
+  const [boothNumber, setBooth] = useState('')
 
   useEffect(() => { setOrigin(window.location.origin) }, [])
   const eventUrl = saved ? `${origin}/${saved.slug}` : ''
@@ -120,6 +121,7 @@ export default function NewEventPage() {
 
   const buildPayload = useCallback(() => ({
     id: saved?.id, name, game_type: gameType, form_fields: fields,
+    booth_number: boothNumber,
     ui_config: { bgColor, bgColor2, accentColor: accent, heading, logoUrl, footerText, bgGradient: `linear-gradient(135deg,${bgColor} 0%,${bgColor2} 100%)` },
     prizes,
     designation_rules: rules.map(r => ({
@@ -323,6 +325,11 @@ export default function NewEventPage() {
               <div><label style={L}>Logo URL</label><input style={F} value={logoUrl} placeholder="https://…/logo.png" onChange={e => setLogo(e.target.value)} /></div>
               <div style={{ gridColumn: '1/-1' }}><label style={L}>Heading</label><input style={F} value={heading} placeholder={`🎉 ${name}`} onChange={e => setHeading(e.target.value)} /></div>
               <div style={{ gridColumn: '1/-1' }}><label style={L}>Footer Text</label><input style={F} value={footerText} placeholder="© 2025 Your Company" onChange={e => setFooter(e.target.value)} /></div>
+              <div style={{ gridColumn: '1/-1' }}>
+                <label style={L}>Booth Number</label>
+                <input style={F} value={boothNumber} placeholder="e.g. B12, Hall 3, Gate A" onChange={e => setBooth(e.target.value)} />
+                <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.25rem', display: 'block' }}>Shown on winner’s screen as “Show this at Booth [X]”</span>
+              </div>
               <div style={{ gridColumn: '1/-1', borderRadius: '0.75rem', padding: '1.5rem', background: `linear-gradient(135deg,${bgColor},${bgColor2})`, textAlign: 'center' }}>
                 <div style={{ fontWeight: 900, fontSize: '1.2rem', color: accent }}>{heading || `🎉 ${name}`}</div>
                 <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.3rem' }}>Fill in your details to spin & win!</div>

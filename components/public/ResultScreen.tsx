@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Confetti from './Confetti'
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   participantName: string
   registrationId: string
   eventName?: string
+  boothNumber?: string | null
 }
 
 const ZELIOT_LINKEDIN = 'https://www.linkedin.com/company/realzeliot/posts/?feedView=all'
@@ -27,11 +28,16 @@ const LinkedInIcon = () => (
 export default function ResultScreen({
   won, prizeName, prizeDescription, prizeImageUrl,
   isGrandPrize, linkedinCompanyUrl, linkedinShareText,
-  participantName, registrationId, eventName,
+  participantName, registrationId, eventName, boothNumber,
 }: Props) {
-  const [emailSent, setEmailSent] = useState(false)
+  const [emailSent, setEmailSent]     = useState(false)
+  const [followed, setFollowed]       = useState(false)
+  const [followClicked, setFollowClicked] = useState(false)
+  const [countdown, setCountdown]     = useState(0)
+  const [shareToast, setShareToast]   = useState(false)
+  const countdownRef                   = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── Fire email immediately on mount (result just appeared) ────────────────
+  // Fire email immediately on mount
   useEffect(() => {
     if (!emailSent && registrationId) {
       fetch('/api/email', {
@@ -42,32 +48,154 @@ export default function ResultScreen({
     }
   }, [registrationId]) // eslint-disable-line
 
-  const firstName = participantName.split(' ')[0] || 'there'
+  // Countdown after Follow button click
+  useEffect(() => {
+    if (!followClicked || followed) return
+    setCountdown(5)
+    countdownRef.current = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(countdownRef.current!)
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [followClicked]) // eslint-disable-line
 
-  // ── LinkedIn URLs ─────────────────────────────────────────────────────────
-  // Follow: always goes to Zeliot's page (override any DB setting)
-  const followUrl = linkedinCompanyUrl || ZELIOT_LINKEDIN
+  const firstName  = participantName.split(' ')[0] || 'there'
+  const followUrl  = linkedinCompanyUrl || ZELIOT_LINKEDIN
 
-  // Share: build a highly engaging Zeliot-branded caption
+  // LinkedIn share caption
   const defaultCaption = won
     ? `🎉 Thrilled to share that I just won "${prizeName}" at the Zeliot Lucky Draw! Huge shoutout to the amazing team at Zeliot for organizing such an engaging and innovative event. 🚀 \n\nIf you haven't checked out what they're building in the connected mobility space, you definitely should! 👇\n\n${ZELIOT_LINKEDIN}\n\n#Zeliot #Innovation #ConnectedMobility`
     : `🎯 Just had a blast participating in the Zeliot Lucky Draw! Even though I didn't snag the grand prize this time, I absolutely loved the gamified experience.\n\nKudos to the Zeliot team for creating such a fun event! 🚀\n\n${ZELIOT_LINKEDIN}\n\n#Zeliot #ConnectedMobility #Innovation`
+  const shareCaption = linkedinShareText || defaultCaption
 
-  const shareCaption  = linkedinShareText || defaultCaption
+  function handleFollowClick() {
+    window.open(followUrl, '_blank', 'noopener,noreferrer')
+    setFollowClicked(true)
+  }
 
-  const handleShareClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+  function handleConfirmFollowed() {
+    setFollowed(true)
+  }
+
+  async function handleShareClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareCaption)
       }
-    } catch (err) {
-      console.error('Failed to copy', err)
-    }
-    // Always open LinkedIn after attempting to copy
+    } catch { /* silent */ }
     window.open('https://www.linkedin.com/feed/?shareActive=true', '_blank')
+    setShareToast(true)
+    setTimeout(() => setShareToast(false), 3000)
   }
 
+  // ─── FOLLOW GATE (shown before result is revealed) ────────────────────────
+  if (!followed) {
+    return (
+      <div style={{ width: '100%', maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+        {/* Blurred prize hint */}
+        <div style={{
+          borderRadius: '1.5rem', overflow: 'hidden',
+          border: '1px solid rgba(10,102,194,0.3)',
+          background: 'linear-gradient(160deg,rgba(10,102,194,0.08) 0%,rgba(10,102,194,0.03) 100%)',
+        }}>
+          <div style={{ height: 4, background: 'linear-gradient(90deg,#0a66c2,#0891b2)' }} />
+          <div style={{ padding: '2rem', textAlign: 'center' }}>
+            {/* Blurred prize */}
+            <div style={{ filter: 'blur(12px)', marginBottom: '1.5rem', userSelect: 'none', pointerEvents: 'none' }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%', margin: '0 auto 1rem',
+                background: 'rgba(245,158,11,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '2.5rem',
+              }}>🎁</div>
+              <div style={{ height: 20, background: 'rgba(255,255,255,0.15)', borderRadius: 8, width: 140, margin: '0 auto 0.5rem' }} />
+              <div style={{ height: 14, background: 'rgba(255,255,255,0.08)', borderRadius: 8, width: 100, margin: '0 auto' }} />
+            </div>
+
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 1.25rem',
+              background: 'rgba(10,102,194,0.15)',
+              border: '2px solid rgba(10,102,194,0.4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.75rem',
+            }}>🔒</div>
+
+            <h2 style={{ fontWeight: 800, fontSize: '1.3rem', margin: '0 0 0.5rem', color: '#f8fafc' }}>
+              One step to reveal your result!
+            </h2>
+            <p style={{ color: 'rgba(248,250,252,0.55)', fontSize: '0.875rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
+              Follow <strong style={{ color: '#60a5fa' }}>Zeliot on LinkedIn</strong> to unlock your prize result and collect it at the booth.
+            </p>
+
+            {!followClicked ? (
+              <button
+                onClick={handleFollowClick}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: '0.625rem', padding: '0.875rem 2rem',
+                  background: '#0a66c2', border: 'none',
+                  borderRadius: '0.875rem', color: '#fff',
+                  fontWeight: 700, fontSize: '1rem',
+                  cursor: 'pointer', width: '100%', fontFamily: 'inherit',
+                  boxShadow: '0 4px 20px rgba(10,102,194,0.4)',
+                }}
+              >
+                <LinkedInIcon /> Follow Zeliot on LinkedIn
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  onClick={handleFollowClick}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '0.5rem', padding: '0.75rem 1.5rem',
+                    background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
+                    borderRadius: '0.75rem', color: '#60a5fa',
+                    fontWeight: 600, fontSize: '0.875rem',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <LinkedInIcon /> Open LinkedIn again
+                </button>
+
+                <button
+                  onClick={handleConfirmFollowed}
+                  disabled={countdown > 0}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: '0.5rem', padding: '0.875rem 2rem',
+                    background: countdown > 0 ? 'rgba(16,185,129,0.15)' : '#059669',
+                    border: countdown > 0 ? '1px solid rgba(16,185,129,0.3)' : 'none',
+                    borderRadius: '0.875rem',
+                    color: countdown > 0 ? 'rgba(248,250,252,0.4)' : '#fff',
+                    fontWeight: 700, fontSize: '1rem',
+                    cursor: countdown > 0 ? 'not-allowed' : 'pointer',
+                    width: '100%', fontFamily: 'inherit',
+                    transition: 'all 0.3s',
+                  }}
+                >
+                  {countdown > 0 ? `Please wait ${countdown}s…` : "✓ I've Followed — Reveal My Result"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <p style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '0.75rem', margin: 0 }}>
+          Following is required to claim your prize at the event booth.
+        </p>
+      </div>
+    )
+  }
+
+  // ─── RESULT REVEALED ──────────────────────────────────────────────────────
   return (
     <div style={{ width: '100%', maxWidth: 460, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {won && <Confetti />}
@@ -80,14 +208,9 @@ export default function ResultScreen({
           ? 'linear-gradient(160deg,rgba(245,158,11,0.08) 0%,rgba(239,68,68,0.05) 100%)'
           : 'rgba(255,255,255,0.03)',
       }}>
-        {/* Top accent bar */}
-        <div style={{
-          height: 4,
-          background: won ? 'linear-gradient(90deg,#f59e0b,#ef4444)' : 'rgba(255,255,255,0.08)',
-        }} />
+        <div style={{ height: 4, background: won ? 'linear-gradient(90deg,#f59e0b,#ef4444)' : 'rgba(255,255,255,0.08)' }} />
 
         <div style={{ padding: '2rem', textAlign: 'center' }}>
-          {/* Icon */}
           <div style={{ marginBottom: '1.25rem' }}>
             {prizeImageUrl ? (
               <img src={prizeImageUrl} alt={prizeName} style={{
@@ -98,8 +221,7 @@ export default function ResultScreen({
             ) : (
               <div style={{
                 width: 80, height: 80, borderRadius: '50%', margin: '0 auto',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '2.5rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem',
                 background: won ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.05)',
                 border: `2px solid ${won ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)'}`,
               }}>
@@ -108,10 +230,9 @@ export default function ResultScreen({
             )}
           </div>
 
-          {/* Status pill */}
           <div style={{
             display: 'inline-block', padding: '0.25rem 0.875rem', borderRadius: 999,
-            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const,
             marginBottom: '0.875rem',
             background: won ? 'rgba(245,158,11,0.15)' : 'rgba(100,116,139,0.12)',
             color: won ? '#fcd34d' : '#94a3b8',
@@ -120,7 +241,6 @@ export default function ResultScreen({
             {isGrandPrize ? 'Grand Prize Winner' : won ? 'You Won' : 'Better Luck Next Time'}
           </div>
 
-          {/* Prize name */}
           <h2 style={{
             fontWeight: 800, fontSize: '1.6rem', margin: '0 0 0.5rem', lineHeight: 1.2,
             ...(won ? {
@@ -145,7 +265,7 @@ export default function ResultScreen({
         </div>
       </div>
 
-      {/* Collect prize (winners only) */}
+      {/* Collect prize banner (winners only) */}
       {won && (
         <div style={{
           padding: '1.25rem 1.5rem', borderRadius: '1.25rem',
@@ -153,7 +273,9 @@ export default function ResultScreen({
           textAlign: 'center',
         }}>
           <p style={{ fontWeight: 700, fontSize: '0.9rem', color: '#fcd34d', margin: '0 0 0.25rem' }}>
-            Show this screen to our staff
+            {boothNumber
+              ? `🎪 Show this screen at Booth ${boothNumber}`
+              : '🎪 Show this screen to our staff'}
           </p>
           <p style={{ color: 'rgba(248,250,252,0.45)', fontSize: '0.8rem', margin: '0 0 0.75rem' }}>
             to collect your prize at the event desk
@@ -177,8 +299,7 @@ export default function ResultScreen({
         <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'rgba(248,250,252,0.5)', margin: '0 0 0.875rem', fontWeight: 500 }}>
           Stay connected with Zeliot
         </p>
-        <div style={{ display: 'flex', gap: '0.625rem' }}>
-          {/* Follow — goes to Zeliot LinkedIn page */}
+        <div style={{ display: 'flex', gap: '0.625rem', position: 'relative' }}>
           <a href={followUrl} target="_blank" rel="noopener noreferrer" style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '0.5rem', padding: '0.7rem',
@@ -187,19 +308,33 @@ export default function ResultScreen({
           }}>
             <LinkedInIcon /> Follow Zeliot
           </a>
-          {/* Share — copies text to clipboard and opens LinkedIn */}
-          <button onClick={handleShareClick} style={{
-            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: '0.5rem', padding: '0.7rem',
-            background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
-            borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem', 
-            cursor: 'pointer', fontFamily: 'inherit',
-          }}>
-            <LinkedInIcon /> Share
-          </button>
+
+          <div style={{ flex: 1, position: 'relative' }}>
+            <button onClick={handleShareClick} style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: '0.5rem', padding: '0.7rem',
+              background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
+              borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <LinkedInIcon /> Share on LinkedIn
+            </button>
+            {shareToast && (
+              <div style={{
+                position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
+                transform: 'translateX(-50%)',
+                background: '#059669', color: '#fff',
+                padding: '0.4rem 0.875rem', borderRadius: '0.5rem',
+                fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                animation: 'fadeInUp 0.2s ease',
+              }}>
+                ✓ Caption copied — just paste!
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Preview the share caption */}
         <div style={{
           marginTop: '0.875rem', padding: '0.75rem',
           background: 'rgba(255,255,255,0.03)', borderRadius: '0.625rem',
@@ -214,6 +349,13 @@ export default function ResultScreen({
       <p style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '0.75rem', margin: 0 }}>
         A confirmation email has been sent to you
       </p>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   )
 }

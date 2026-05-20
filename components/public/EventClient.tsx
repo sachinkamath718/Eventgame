@@ -9,6 +9,7 @@ import ResultScreen from '@/components/public/ResultScreen'
 interface Prize {
   id: string; rank: number; name: string; description?: string
   image_url?: string; is_consolation: boolean; is_grand_prize: boolean
+  quantity?: number; claimed?: number
 }
 
 interface FormField {
@@ -25,6 +26,7 @@ interface RegResult {
   won:               boolean
   name?:             string
   isGrandPrizeSession?: boolean
+  alreadyPlayed?:    boolean
 }
 
 interface LuckyEvent {
@@ -35,6 +37,7 @@ interface LuckyEvent {
   designation_rules?: Array<{ designations: string[]; prize_rank: number; win_probability: number }>
   linkedin_company_url?: string
   linkedin_share_text?: string
+  booth_number?: string
 }
 
 type Stage = 'form' | 'game' | 'result'
@@ -43,6 +46,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
   const [stage, setStage]         = useState<Stage>('form')
   const [regResult, setRegResult] = useState<RegResult | null>(null)
   const [participantName, setName] = useState('')
+  const [alreadyPlayed, setAlreadyPlayed] = useState(false)
 
   const ui     = event.ui_config || {}
   const bg     = ui.bgColor && ui.bgColor2
@@ -53,8 +57,15 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
 
   useEffect(() => {
     function handleReg(e: CustomEvent<RegResult>) {
-      setRegResult(e.detail)
-      setName(e.detail.name || '')
+      const detail = e.detail
+      if (detail.alreadyPlayed) {
+        setAlreadyPlayed(true)
+        setRegResult(detail)
+        setName(detail.name || '')
+        return
+      }
+      setRegResult(detail)
+      setName(detail.name || '')
       setStage('game')
     }
     window.addEventListener('registration-complete', handleReg as EventListener)
@@ -152,8 +163,28 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
         ))}
       </div>
 
+      {/* Already played screen */}
+      {alreadyPlayed && (
+        <div style={{
+          width: '100%', maxWidth: 440,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: '1.5rem', padding: '2.5rem 2rem',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎡</div>
+          <h2 style={{ fontWeight: 800, fontSize: '1.3rem', margin: '0 0 0.75rem', color: '#f8fafc' }}>
+            You&apos;ve already played!
+          </h2>
+          <p style={{ color: 'rgba(248,250,252,0.5)', fontSize: '0.875rem', lineHeight: 1.7, margin: 0 }}>
+            Each person can only play once per event.<br />
+            <strong style={{ color: '#a78bfa' }}>Try at the next event!</strong>
+          </p>
+        </div>
+      )}
+
       {/* Form */}
-      {stage === 'form' && (
+      {!alreadyPlayed && stage === 'form' && (
         <div style={{
           width: '100%', maxWidth: 440,
           background: 'rgba(255,255,255,0.04)',
@@ -166,7 +197,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
       )}
 
       {/* Game */}
-      {stage === 'game' && regResult && (
+      {!alreadyPlayed && stage === 'game' && regResult && (
         <div style={{
           width: '100%', maxWidth: 480,
           background: 'rgba(255,255,255,0.03)',
@@ -195,6 +226,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
               registrationId={regResult.registrationId}
             />
           )}
+          {/* Note: quantity/claimed is fetched fresh server-side per spin */}
           {event.game_type === 'number_match' && (
             <NumberMatchGame won={regResult.won} onDone={handleGameDone} />
           )}
@@ -205,7 +237,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
       )}
 
       {/* Result */}
-      {stage === 'result' && regResult && (
+      {!alreadyPlayed && stage === 'result' && regResult && (
         <ResultScreen
           won={regResult.won}
           prizeName={regResult.prizeName}
@@ -216,6 +248,7 @@ export default function EventClient({ event }: { event: LuckyEvent }) {
           linkedinShareText={event.linkedin_share_text}
           participantName={participantName}
           registrationId={regResult.registrationId}
+          boothNumber={event.booth_number}
         />
       )}
 

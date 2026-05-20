@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         prizeDescription: existing.prize_description ?? undefined,
         won:              existing.game_result === 'won',
         name:             existing.name,
-        duplicate:        true,
+        alreadyPlayed:    true,
       })
     }
 

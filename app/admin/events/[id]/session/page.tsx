@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type Participant = {
-  id: string; name: string; designation: string; company: string; created_at: string
+  id: string; name: string; designation: string; company: string; email: string; created_at: string
 }
 type Session = {
   id: string; event_id: string; is_active: boolean
@@ -561,6 +561,11 @@ export default function AdminSessionPage() {
                           <div style={{ fontSize: '0.75rem', color: 'rgba(248,250,252,0.4)' }}>
                             {p.designation}{p.company ? ` · ${p.company}` : ''}
                           </div>
+                          {p.email && (
+                            <div style={{ fontSize: '0.68rem', color: 'rgba(148,163,184,0.6)', marginTop: '0.1rem' }}>
+                              {p.email}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <span style={{
