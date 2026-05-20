@@ -443,13 +443,13 @@ export default function EditEventPage() {
           {tab === 5 && (
             <div>
               <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Set win probability per designation group.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                {['Group', 'Designations (comma separated)', 'Win %'].map(h => (
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px 40px', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                {['Group', 'Designations (comma separated)', 'Win %', ''].map(h => (
                   <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
                 ))}
               </div>
               {rules.map((r, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'start' }}>
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px 40px', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'start' }}>
                   <input style={{ ...F, padding: '0.5rem 0.7rem' }} value={r.label} placeholder="Group name"
                     onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
                   <input style={{ ...F, padding: '0.5rem 0.7rem', fontSize: '0.8rem' }} value={r.designations} placeholder="CEO, CTO, VP…"
@@ -459,8 +459,14 @@ export default function EditEventPage() {
                       onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, win_probability: Number(e.target.value) } : x))} />
                     <span style={{ fontSize: '0.8rem', color: 'rgba(248,250,252,0.4)', whiteSpace: 'nowrap' }}>%</span>
                   </div>
+                  <button onClick={() => setRules(rs => rs.filter((_, j) => j !== i))}
+                    style={{ padding: '0.45rem', height: '36px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 </div>
               ))}
+              <button
+                onClick={() => setRules(rs => [...rs, { id: crypto.randomUUID(), label: '', designations: '', prize_rank: 2, win_probability: 50 }])}
+                style={{ padding: '0.5rem 1rem', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', marginTop: '0.25rem' }}
+              >+ Add Rule</button>
               <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '0.75rem' }}>
                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', fontWeight: 700, color: '#a78bfa' }}>Current Win Ratios</p>
                 {rules.map((r, i) => (

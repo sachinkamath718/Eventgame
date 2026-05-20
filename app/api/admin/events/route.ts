@@ -39,20 +39,24 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   // Insert prizes
+  let insertedPrizes = []
   if (prizes?.length) {
-    await supabase.from('prizes').insert(
+    const { data } = await supabase.from('prizes').insert(
       prizes.map((p: Record<string, unknown>) => ({ ...p, event_id: event.id }))
-    )
+    ).select()
+    insertedPrizes = data || []
   }
 
   // Insert designation rules
+  let insertedRules = []
   if (designation_rules?.length) {
-    await supabase.from('designation_rules').insert(
+    const { data } = await supabase.from('designation_rules').insert(
       designation_rules.map((r: Record<string, unknown>) => ({ ...r, event_id: event.id }))
-    )
+    ).select()
+    insertedRules = data || []
   }
 
-  return NextResponse.json({ event })
+  return NextResponse.json({ event, prizes: insertedPrizes, designation_rules: insertedRules })
 }
 
 
@@ -70,9 +74,15 @@ export async function PUT(req: NextRequest) {
   }
 
   if (designation_rules) {
-    if (designation_rules.length) {
-      await supabase.from('designation_rules').upsert(
-        designation_rules.map((r: Record<string, unknown>) => ({ ...r, event_id: id }))
+    // Completely replace rules to avoid duplicates and handle deletions
+    await supabase.from('designation_rules').delete().eq('event_id', id)
+    
+    if (designation_rules.length > 0) {
+      await supabase.from('designation_rules').insert(
+        designation_rules.map((r: Record<string, unknown>) => {
+          const { id: _ignore, ...rest } = r
+          return { ...rest, event_id: id }
+        })
       )
     }
   }
