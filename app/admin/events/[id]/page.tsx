@@ -659,8 +659,9 @@ export default function EditEventPage() {
                         ? w.game_result !== 'won'
                         : w.prize_rank_won === p.rank && w.game_result === 'won'
                     )
-                    const claimed   = colWinners.length
-                    const remaining = isConsolation ? null : Math.max(0, p.quantity - claimed)
+                    const totalWon  = colWinners.length   // all digital winners (for stock calc)
+                    const handedOut = colWinners.filter(w => w.prize_handed_out).length  // physically given out (tick ✓)
+                    const remaining = isConsolation ? null : Math.max(0, p.quantity - totalWon)
                     const soldOut   = !isConsolation && remaining === 0
 
                     const accentColor = isConsolation ? '#64748b'
@@ -682,12 +683,12 @@ export default function EditEventPage() {
                         }}>
                           <div style={{ fontWeight: 700, fontSize: '0.82rem', color: accentColor }}>{p.name}</div>
                           <div style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.4)', marginTop: '0.1rem' }}>
-                            {isConsolation ? `${claimed} participants` : (
+                            {isConsolation ? `${totalWon} participants` : (
                               <span>
                                 <span style={{ color: soldOut ? '#f87171' : remaining! <= 2 ? '#fbbf24' : '#4ade80', fontWeight: 700 }}>
                                   {remaining} left
                                 </span>
-                                {' · '}{claimed}/{p.quantity} claimed
+                                {' · '}{handedOut}/{p.quantity} handed out ✓
                               </span>
                             )}
                           </div>
