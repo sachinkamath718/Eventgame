@@ -9,7 +9,7 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
-  // Try full select (includes new optional columns: booth_number, linkedin_*, quantity on prizes)
+  // Try full select (includes optional new columns)
   const full = await supabase
     .from('events')
     .select(`
@@ -27,7 +27,7 @@ export async function GET(
   let event: any = full.data
   let fetchError: any = full.error
 
-  // If full select failed (column not yet in DB), fall back to minimal select
+  // Fallback: if new columns don't exist yet, retry with minimal select
   if (fetchError) {
     console.warn('[event route] full select failed, using fallback:', fetchError.message)
     const minimal = await supabase
@@ -57,32 +57,29 @@ export async function GET(
     event.prizes.sort((a: any, b: any) => a.rank - b.rank)
   }
 
-  // Hydrate real-time claimed counts (for stock-aware wheel filtering)
-  const prizeIds: string[] = (Array.isArray(event.prizes) ? event.prizes : [])
-    .filter((p: any) => !p.is_consolation && p.quantity != null)
-    .map((p: any) => p.id)
-
-  let claimedMap: Record<string, number> = {}
-  if (prizeIds.length > 0) {
+  // ── Hydrate real-time claimed counts ─────────────────────────────────────
+  // Use prize_rank_won (always stored) rather than prize_id (new column, may not exist)
+  // so that stock enforcement works even before DB migrations are run.
+  if (Array.isArray(event.prizes) && event.prizes.length > 0) {
     const { data: claimedRows } = await supabase
       .from('registrations')
-      .select('prize_id')
+      .select('prize_rank_won')
       .eq('event_id', event.id)
       .eq('game_result', 'won')
-      .in('prize_id', prizeIds)
+      .not('prize_rank_won', 'is', null)
 
+    // Build rank → claimed count map
+    const rankClaimedMap: Record<number, number> = {}
     for (const row of claimedRows ?? []) {
-      if (row.prize_id) {
-        claimedMap[row.prize_id] = (claimedMap[row.prize_id] ?? 0) + 1
+      if (row.prize_rank_won != null) {
+        rankClaimedMap[row.prize_rank_won] = (rankClaimedMap[row.prize_rank_won] ?? 0) + 1
       }
     }
-  }
 
-  // Attach claimed count to each prize object
-  if (Array.isArray(event.prizes)) {
+    // Attach claimed count to each prize using its rank
     event.prizes = event.prizes.map((p: any) => ({
       ...p,
-      claimed: claimedMap[p.id] ?? 0,
+      claimed: rankClaimedMap[p.rank] ?? 0,
     }))
   }
 

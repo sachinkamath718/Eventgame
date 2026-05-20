@@ -34,7 +34,8 @@ export default function ResultScreen({
   const [followed, setFollowed]       = useState(false)
   const [followClicked, setFollowClicked] = useState(false)
   const [countdown, setCountdown]     = useState(0)
-  const [shareToast, setShareToast]   = useState(false)
+  const [shareModal, setShareModal]   = useState(false)
+  const [captionCopied, setCaptionCopied] = useState(false)
   const countdownRef                   = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Fire email immediately on mount
@@ -84,14 +85,22 @@ export default function ResultScreen({
 
   async function handleShareClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
+    setShareModal(true)
+    setCaptionCopied(false)
+  }
+
+  async function copyCaption() {
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareCaption)
       }
     } catch { /* silent */ }
+    setCaptionCopied(true)
+  }
+
+  function openLinkedIn() {
     window.open('https://www.linkedin.com/feed/?shareActive=true', '_blank')
-    setShareToast(true)
-    setTimeout(() => setShareToast(false), 3000)
+    setShareModal(false)
   }
 
   // ─── FOLLOW GATE (shown before result is revealed) ────────────────────────
@@ -299,7 +308,7 @@ export default function ResultScreen({
         <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'rgba(248,250,252,0.5)', margin: '0 0 0.875rem', fontWeight: 500 }}>
           Stay connected with Zeliot
         </p>
-        <div style={{ display: 'flex', gap: '0.625rem', position: 'relative' }}>
+        <div style={{ display: 'flex', gap: '0.625rem' }}>
           <a href={followUrl} target="_blank" rel="noopener noreferrer" style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '0.5rem', padding: '0.7rem',
@@ -308,47 +317,96 @@ export default function ResultScreen({
           }}>
             <LinkedInIcon /> Follow Zeliot
           </a>
-
-          <div style={{ flex: 1, position: 'relative' }}>
-            <button onClick={handleShareClick} style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: '0.5rem', padding: '0.7rem',
-              background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
-              borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem',
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-              <LinkedInIcon /> Share on LinkedIn
-            </button>
-            {shareToast && (
-              <div style={{
-                position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
-                transform: 'translateX(-50%)',
-                background: '#059669', color: '#fff',
-                padding: '0.4rem 0.875rem', borderRadius: '0.5rem',
-                fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                animation: 'fadeInUp 0.2s ease',
-              }}>
-                ✓ Caption copied — just paste!
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{
-          marginTop: '0.875rem', padding: '0.75rem',
-          background: 'rgba(255,255,255,0.03)', borderRadius: '0.625rem',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}>
-          <p style={{ margin: 0, fontSize: '0.7rem', color: 'rgba(248,250,252,0.35)', lineHeight: 1.5, whiteSpace: 'pre-line' }}>
-            {shareCaption.length > 160 ? shareCaption.slice(0, 160) + '…' : shareCaption}
-          </p>
+          <button onClick={handleShareClick} style={{
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: '0.5rem', padding: '0.7rem',
+            background: 'rgba(10,102,194,0.15)', border: '1px solid rgba(10,102,194,0.4)',
+            borderRadius: '0.75rem', color: '#60a5fa', fontWeight: 600, fontSize: '0.82rem',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <LinkedInIcon /> Share on LinkedIn
+          </button>
         </div>
       </div>
 
       <p style={{ textAlign: 'center', color: 'rgba(248,250,252,0.25)', fontSize: '0.75rem', margin: 0 }}>
         A confirmation email has been sent to you
       </p>
+
+      {/* ── LinkedIn Share Modal ── */}
+      {shareModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 999,
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          padding: '1rem',
+        }} onClick={() => setShareModal(false)}>
+          <div style={{
+            width: '100%', maxWidth: 500,
+            background: '#0f0f1a', border: '1px solid rgba(10,102,194,0.4)',
+            borderRadius: '1.5rem', padding: '1.5rem',
+            marginBottom: '1rem',
+          }} onClick={e => e.stopPropagation()}>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <LinkedInIcon />
+                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>Share on LinkedIn</span>
+              </div>
+              <button onClick={() => setShareModal(false)} style={{
+                background: 'none', border: 'none', color: 'rgba(248,250,252,0.4)',
+                cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.25rem',
+              }}>✕</button>
+            </div>
+
+            {/* Caption preview — full text, selectable */}
+            <div style={{
+              background: '#fff', borderRadius: '0.875rem', padding: '1rem',
+              marginBottom: '1rem', maxHeight: 200, overflowY: 'auto',
+            }}>
+              <p style={{
+                margin: 0, fontSize: '0.82rem', color: '#1a1a1a',
+                lineHeight: 1.6, whiteSpace: 'pre-line', userSelect: 'text',
+              }}>
+                {shareCaption}
+              </p>
+            </div>
+
+            {/* Step 1: Copy */}
+            <button onClick={copyCaption} style={{
+              width: '100%', padding: '0.875rem',
+              background: captionCopied ? '#059669' : 'rgba(10,102,194,0.15)',
+              border: `1px solid ${captionCopied ? '#059669' : 'rgba(10,102,194,0.4)'}`,
+              borderRadius: '0.875rem', color: captionCopied ? '#fff' : '#60a5fa',
+              fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+              fontFamily: 'inherit', marginBottom: '0.625rem',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            }}>
+              {captionCopied ? '✓ Caption Copied!' : '📋 Step 1 — Copy Caption'}
+            </button>
+
+            {/* Step 2: Open LinkedIn */}
+            <button onClick={openLinkedIn} style={{
+              width: '100%', padding: '0.875rem',
+              background: '#0a66c2', border: 'none',
+              borderRadius: '0.875rem', color: '#fff',
+              fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            }}>
+              <LinkedInIcon /> Step 2 — Open LinkedIn & Paste
+            </button>
+
+            <p style={{
+              textAlign: 'center', fontSize: '0.72rem',
+              color: 'rgba(248,250,252,0.35)', margin: '0.75rem 0 0', lineHeight: 1.5,
+            }}>
+              When LinkedIn opens → click <strong style={{ color: 'rgba(248,250,252,0.6)' }}>&quot;What do you want to talk about?&quot;</strong> → press <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.35rem', borderRadius: '0.25rem', fontSize: '0.72rem' }}>Ctrl+V</kbd> to paste
+            </p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes fadeInUp {
