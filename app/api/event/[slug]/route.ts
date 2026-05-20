@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -8,47 +9,28 @@ export async function GET(
   const { slug } = await params
   const supabase = createServiceClient()
 
-  // Try full select (includes optional new columns)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let event: any = null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let error: any = null
-  ;({ data: event, error } = await supabase
+  // Try full select (includes new optional columns: booth_number, linkedin_*, quantity on prizes)
+  const full = await supabase
     .from('events')
     .select(`
-      id,
-      name,
-      slug,
-      game_type,
-      is_active,
-      form_fields,
-      ui_config,
-      booth_number,
-      linkedin_company_url,
-      linkedin_share_text,
+      id, name, slug, game_type, is_active, form_fields, ui_config,
+      booth_number, linkedin_company_url, linkedin_share_text,
       prizes (
-        id,
-        rank,
-        name,
-        description,
-        image_url,
-        quantity,
-        is_consolation,
-        is_grand_prize
+        id, rank, name, description, image_url, quantity,
+        is_consolation, is_grand_prize
       ),
-      designation_rules (
-        designations,
-        prize_rank,
-        win_probability
-      )
+      designation_rules ( designations, prize_rank, win_probability )
     `)
     .eq('slug', slug)
-    .single())
+    .single()
 
-  // Fallback: if new columns don't exist yet, retry with minimal select
-  if (error) {
-    console.warn('[event route] full select failed, retrying with fallback:', error.message)
-    const fallback = await supabase
+  let event: any = full.data
+  let fetchError: any = full.error
+
+  // If full select failed (column not yet in DB), fall back to minimal select
+  if (fetchError) {
+    console.warn('[event route] full select failed, using fallback:', fetchError.message)
+    const minimal = await supabase
       .from('events')
       .select(`
         id, name, slug, game_type, is_active, form_fields, ui_config,
@@ -57,25 +39,28 @@ export async function GET(
       `)
       .eq('slug', slug)
       .single()
-    event = fallback.data
-    error = fallback.error
+
+    event      = minimal.data as any
+    fetchError = minimal.error
   }
 
-  if (error || !event) {
-    console.error('[event route] fatal:', error?.message, '| slug:', slug)
-    return NextResponse.json({ error: 'Event not found', detail: error?.message }, { status: 404 })
+  if (fetchError || !event) {
+    console.error('[event route] fatal:', fetchError?.message, '| slug:', slug)
+    return NextResponse.json(
+      { error: 'Event not found', detail: fetchError?.message },
+      { status: 404 }
+    )
   }
 
   // Sort prizes by rank
   if (Array.isArray(event.prizes)) {
-    event.prizes.sort((a: { rank: number }, b: { rank: number }) => a.rank - b.rank)
+    event.prizes.sort((a: any, b: any) => a.rank - b.rank)
   }
 
-  // ── Hydrate real-time claimed counts for each prize ──────────────────────
-  // This lets the wheel filter out prizes that are genuinely out of stock
-  const prizeIds = (event.prizes as Array<{ id: string; is_consolation: boolean; quantity?: number }> | null)
-    ?.filter(p => !p.is_consolation && p.quantity != null)
-    .map(p => p.id) ?? []
+  // Hydrate real-time claimed counts (for stock-aware wheel filtering)
+  const prizeIds: string[] = (Array.isArray(event.prizes) ? event.prizes : [])
+    .filter((p: any) => !p.is_consolation && p.quantity != null)
+    .map((p: any) => p.id)
 
   let claimedMap: Record<string, number> = {}
   if (prizeIds.length > 0) {
@@ -93,10 +78,9 @@ export async function GET(
     }
   }
 
-  // Attach claimed count to each prize
+  // Attach claimed count to each prize object
   if (Array.isArray(event.prizes)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(event as any).prizes = (event.prizes as any[]).map((p) => ({
+    event.prizes = event.prizes.map((p: any) => ({
       ...p,
       claimed: claimedMap[p.id] ?? 0,
     }))
