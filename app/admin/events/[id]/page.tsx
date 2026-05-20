@@ -71,6 +71,7 @@ export default function EditEventPage() {
   )
   const [fields, setFields]     = useState<FieldMapping[]>([])
   const [claimedMap, setClaimedMap] = useState<Record<number, number>>({})
+  const [newDesigInputs, setNewDesigInputs] = useState<Record<string, string>>({})
 
   useEffect(() => { if (typeof window !== 'undefined') setOrigin(window.location.origin) }, [])
   const eventUrl = origin && slug ? `${origin}/${slug}` : ''
@@ -449,40 +450,156 @@ export default function EditEventPage() {
 
           {/* TAB 5: Win Rules */}
           {tab === 5 && (
-            <div>
-              <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)' }}>Set win probability per designation group.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px 40px', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                {['Group', 'Designations (comma separated)', 'Win %', ''].map(h => (
-                  <span key={h} style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', fontWeight: 700, textTransform: 'uppercase' }}>{h}</span>
-                ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'rgba(248,250,252,0.5)', lineHeight: 1.6 }}>
+                  Each card defines a group of job titles eligible for a specific prize rank.
+                  Add/remove individual designations as chips — no comma typing needed.
+                </p>
               </div>
-              {rules.map((r, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 100px 40px', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'start' }}>
-                  <input style={{ ...F, padding: '0.5rem 0.7rem' }} value={r.label} placeholder="Group name"
-                    onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
-                  <input style={{ ...F, padding: '0.5rem 0.7rem', fontSize: '0.8rem' }} value={r.designations} placeholder="CEO, CTO, VP…"
-                    onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, designations: e.target.value } : x))} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <input type="number" min={0} max={100} style={{ ...F, padding: '0.5rem', width: 60 }} value={r.win_probability}
-                      onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, win_probability: Number(e.target.value) } : x))} />
-                    <span style={{ fontSize: '0.8rem', color: 'rgba(248,250,252,0.4)', whiteSpace: 'nowrap' }}>%</span>
+
+              {rules.map((r, i) => {
+                const ruleKey = r.id || String(i)
+                const chips = r.designations.split(',').map((d: string) => d.trim()).filter(Boolean)
+                const targetPrize = prizes.find(p => !p.is_consolation && !p.is_grand_prize && p.rank === r.prize_rank)
+                const inputVal = newDesigInputs[ruleKey] || ''
+
+                function addChip(val: string) {
+                  const trimmed = val.trim()
+                  if (!trimmed || chips.includes(trimmed)) return
+                  const next = [...chips, trimmed].join(', ')
+                  setRules(rs => rs.map((x, j) => j === i ? { ...x, designations: next } : x))
+                  setNewDesigInputs(prev => ({ ...prev, [ruleKey]: '' }))
+                }
+
+                function removeChip(ci: number) {
+                  const next = chips.filter((_: string, idx: number) => idx !== ci).join(', ')
+                  setRules(rs => rs.map((x, j) => j === i ? { ...x, designations: next } : x))
+                }
+
+                return (
+                  <div key={ruleKey} style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.09)',
+                    borderRadius: '1rem', padding: '1.25rem',
+                    transition: 'border-color 0.2s',
+                  }}>
+                    {/* ── Card header row ── */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
+                      {/* Group name */}
+                      <input style={{ ...F, padding: '0.5rem 0.75rem', flex: '1 1 160px', minWidth: 140 }}
+                        value={r.label} placeholder="Group name (e.g. C-Suite / VP)"
+                        onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+
+                      {/* Prize rank dropdown */}
+                      <select
+                        value={r.prize_rank}
+                        onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, prize_rank: Number(e.target.value) } : x))}
+                        style={{ ...F, padding: '0.45rem 0.75rem', flex: '0 1 220px', appearance: 'none' as const }}
+                      >
+                        {prizes.filter(p => !p.is_consolation && !p.is_grand_prize).map(p => (
+                          <option key={p.rank} value={p.rank} style={{ background: '#1e1b4b' }}>
+                            Rank {p.rank} — {p.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Win probability */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        <input type="number" min={0} max={100}
+                          style={{ ...F, padding: '0.45rem', width: 62, textAlign: 'center' as const }}
+                          value={r.win_probability}
+                          onChange={e => setRules(rs => rs.map((x, j) => j === i ? { ...x, win_probability: Number(e.target.value) } : x))} />
+                        <span style={{ fontSize: '0.8rem', color: 'rgba(248,250,252,0.4)', whiteSpace: 'nowrap' }}>% win</span>
+                      </div>
+
+                      {/* Delete rule */}
+                      <button onClick={() => setRules(rs => rs.filter((_, j) => j !== i))}
+                        style={{ padding: '0.4rem 0.75rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.5rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.78rem', whiteSpace: 'nowrap' as const }}>
+                        ✕ Remove
+                      </button>
+                    </div>
+
+                    {/* ── Prize badge ── */}
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#a78bfa', background: 'rgba(124,58,237,0.15)', padding: '0.2rem 0.65rem', borderRadius: '999px', border: '1px solid rgba(124,58,237,0.25)' }}>
+                        Eligible for: {targetPrize ? `Rank ${targetPrize.rank} — ${targetPrize.name}` : `Rank ${r.prize_rank}`}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'rgba(248,250,252,0.35)', marginLeft: '0.625rem' }}>
+                        {r.win_probability}% chance to win · {chips.length} designation{chips.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {/* ── Designation chips ── */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                      {chips.map((chip: string, ci: number) => (
+                        <span key={ci} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                          padding: '0.25rem 0.5rem 0.25rem 0.75rem',
+                          background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.28)',
+                          borderRadius: '999px', fontSize: '0.78rem', color: '#c4b5fd',
+                        }}>
+                          {chip}
+                          <button onClick={() => removeChip(ci)} style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'rgba(196,181,253,0.55)', padding: '0 0.1rem',
+                            lineHeight: 1, fontSize: '0.85rem', display: 'flex', alignItems: 'center',
+                          }}>✕</button>
+                        </span>
+                      ))}
+
+                      {/* Inline add input */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <input
+                          value={inputVal}
+                          placeholder="+ Add title, Enter"
+                          onChange={e => setNewDesigInputs(prev => ({ ...prev, [ruleKey]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addChip(inputVal) } }}
+                          style={{
+                            padding: '0.25rem 0.6rem',
+                            background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.2)',
+                            borderRadius: '999px', color: '#f8fafc', fontSize: '0.78rem',
+                            outline: 'none', width: 150, transition: 'border-color 0.2s',
+                          }}
+                        />
+                        {inputVal.trim() && (
+                          <button onClick={() => addChip(inputVal)} style={{
+                            padding: '0.25rem 0.6rem',
+                            background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)',
+                            borderRadius: '999px', color: '#a78bfa', cursor: 'pointer', fontSize: '0.78rem',
+                          }}>Add</button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <button onClick={() => setRules(rs => rs.filter((_, j) => j !== i))}
-                    style={{ padding: '0.45rem', height: '36px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '0.45rem', color: '#fca5a5', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-                </div>
-              ))}
+                )
+              })}
+
+              {/* Add new rule */}
               <button
-                onClick={() => setRules(rs => [...rs, { id: crypto.randomUUID(), label: '', designations: '', prize_rank: 2, win_probability: 50 }])}
-                style={{ padding: '0.5rem 1rem', background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: '0.5rem', color: '#a78bfa', fontSize: '0.8rem', cursor: 'pointer', marginTop: '0.25rem' }}
-              >+ Add Rule</button>
-              <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '0.75rem' }}>
-                <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', fontWeight: 700, color: '#a78bfa' }}>Current Win Ratios</p>
-                {rules.map((r, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'rgba(248,250,252,0.6)', marginBottom: '0.25rem' }}>
-                    <span>{r.label || `Group ${i + 1}`}</span>
-                    <span style={{ color: '#a78bfa', fontWeight: 600 }}>{r.win_probability}:{100 - r.win_probability} (win:lose)</span>
-                  </div>
-                ))}
+                onClick={() => setRules(rs => [...rs, { id: crypto.randomUUID(), label: '', designations: '', prize_rank: prizes.find(p => !p.is_consolation && !p.is_grand_prize)?.rank ?? 2, win_probability: 30 }])}
+                style={{ padding: '0.65rem 1.25rem', background: 'rgba(124,58,237,0.12)', border: '1px dashed rgba(124,58,237,0.35)', borderRadius: '0.75rem', color: '#a78bfa', fontSize: '0.875rem', cursor: 'pointer', fontWeight: 600 }}
+              >+ Add Group Rule</button>
+
+              {/* Win ratio summary */}
+              <div style={{ padding: '1rem', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.18)', borderRadius: '0.875rem' }}>
+                <p style={{ margin: '0 0 0.625rem', fontSize: '0.75rem', fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Win Probability Summary</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {rules.map((r, i) => {
+                    const tPrize = prizes.find(p => !p.is_consolation && !p.is_grand_prize && p.rank === r.prize_rank)
+                    const chips = r.designations.split(',').map((d: string) => d.trim()).filter(Boolean)
+                    return (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'rgba(248,250,252,0.55)' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: '#f8fafc', fontWeight: 600 }}>{r.label || `Group ${i + 1}`}</span>
+                          {tPrize && <span style={{ fontSize: '0.68rem', color: 'rgba(167,139,250,0.7)' }}>→ {tPrize.name}</span>}
+                          <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.25)' }}>{chips.length} titles</span>
+                        </span>
+                        <span style={{ color: '#a78bfa', fontWeight: 700 }}>{r.win_probability}:{100 - r.win_probability}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
