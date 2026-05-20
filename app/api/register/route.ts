@@ -82,23 +82,17 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Duplicate check (normal / non-session path only) ─────────────────────
-    const [emailCheck, nameCheck] = await Promise.all([
-      supabase
-        .from('registrations')
-        .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
-        .eq('event_id', event_id)
-        .eq('email', email)
-        .limit(1),
-      supabase
-        .from('registrations')
-        .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
-        .eq('event_id', event_id)
-        .ilike('name', name)
-        .limit(1)
-    ])
+    // ── Duplicate check: email only ───────────────────────────────────────────
+    // Name is not a reliable unique key — many people share names.
+    // Email is the canonical "one play per person" identifier.
+    const { data: existingRows } = await supabase
+      .from('registrations')
+      .select('id, prize_name, prize_rank_won, prize_image_url, prize_description, game_result, name')
+      .eq('event_id', event_id)
+      .eq('email', email)
+      .limit(1)
 
-    const existing = emailCheck.data?.[0] || nameCheck.data?.[0]
+    const existing = existingRows?.[0]
 
     if (existing) {
       return NextResponse.json({
@@ -112,6 +106,7 @@ export async function POST(req: NextRequest) {
         alreadyPlayed:    true,
       })
     }
+
 
     // ── Normal path: assign prize immediately ─────────────────────────────────
 
