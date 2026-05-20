@@ -646,7 +646,7 @@ export default function EditEventPage() {
                 </div>
               ) : (
                 /* ── Prize-grouped columns ── */
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: '1rem', alignItems: 'start' }}>
+                <div style={{ display: 'flex', gap: '0.875rem', overflowX: 'auto', alignItems: 'start', paddingBottom: '0.5rem' }}>
                   {[
                     // Non-consolation prizes sorted by rank
                     ...prizes.filter(p => !p.is_consolation && !p.is_grand_prize).sort((a,b) => a.rank - b.rank),
@@ -673,7 +673,8 @@ export default function EditEventPage() {
                       <div key={p.rank} style={{
                         background: 'rgba(255,255,255,0.02)',
                         border: `1px solid ${soldOut ? 'rgba(248,113,113,0.25)' : `rgba(${isConsolation?'100,116,139':'255,255,255'},0.09)`}`,
-                        borderRadius: '1rem', overflow: 'hidden',
+                        borderRadius: '1rem', overflow: 'hidden', flexShrink: 0,
+                        width: 260, minWidth: 220,
                       }}>
                         {/* Column header */}
                         <div style={{
@@ -694,39 +695,48 @@ export default function EditEventPage() {
                           </div>
                         </div>
 
-                        {/* Winner cards in this column */}
-                        <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.375rem', maxHeight: 400, overflowY: 'auto' }}>
+                        {/* Rows — slim, divider-separated */}
+                        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
                           {colWinners.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: 'rgba(248,250,252,0.2)', fontSize: '0.75rem' }}>None yet</div>
-                          ) : colWinners.map(w => (
+                            <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: 'rgba(248,250,252,0.18)', fontSize: '0.72rem' }}>None yet</div>
+                          ) : colWinners.map((w, idx) => (
                             <div key={w.id} style={{
                               display: 'flex', alignItems: 'center', gap: '0.5rem',
-                              padding: '0.5rem 0.625rem',
-                              background: w.prize_handed_out ? 'rgba(74,222,128,0.06)' : 'rgba(0,0,0,0.2)',
-                              border: `1px solid ${w.prize_handed_out ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.05)'}`,
-                              borderRadius: '0.625rem',
+                              padding: '0.45rem 0.75rem',
+                              background: w.prize_handed_out ? 'rgba(74,222,128,0.05)' : 'transparent',
+                              borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                              transition: 'background 0.2s',
                             }}>
-                              {/* Avatar */}
-                              <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.68rem', color: '#fff', background: `hsl(${(w.name.charCodeAt(0)*15)%360},50%,32%)` }}>
+                              {/* Slim avatar initial */}
+                              <div style={{
+                                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 700, fontSize: '0.6rem', color: '#fff',
+                                background: `hsl(${(w.name.charCodeAt(0)*15)%360},45%,30%)`,
+                              }}>
                                 {w.name.charAt(0).toUpperCase()}
                               </div>
-                              {/* Info */}
+                              {/* Name + email inline */}
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 600, fontSize: '0.75rem', color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</div>
-                                <div style={{ fontSize: '0.64rem', color: 'rgba(248,250,252,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.email || w.designation}</div>
+                                <span style={{ fontWeight: 600, fontSize: '0.73rem', color: w.prize_handed_out ? '#4ade80' : '#f8fafc', marginRight: '0.3rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                                  {w.name}
+                                  {w.designation ? <span style={{ fontWeight: 400, color: 'rgba(248,250,252,0.35)', fontSize: '0.66rem' }}> &middot; {w.designation}</span> : null}
+                                </span>
+                                <span style={{ fontSize: '0.62rem', color: 'rgba(148,163,184,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                                  {w.email}
+                                </span>
                               </div>
                               {/* Tick — only for actual winners */}
                               {!isConsolation && (
                                 <button
                                   onClick={() => markHandedOut(w.id, w.prize_handed_out)}
                                   disabled={handingOut === w.id}
-                                  title={w.prize_handed_out ? 'Mark NOT handed out' : 'Mark handed out'}
+                                  title={w.prize_handed_out ? 'Undo handed out' : 'Mark handed out'}
                                   style={{
-                                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                                    border: `2px solid ${w.prize_handed_out ? 'rgba(74,222,128,0.6)' : 'rgba(255,255,255,0.15)'}`,
-                                    background: w.prize_handed_out ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)',
-                                    color: w.prize_handed_out ? '#4ade80' : 'rgba(248,250,252,0.3)',
-                                    fontSize: '0.85rem', cursor: 'pointer',
+                                    width: 24, height: 24, borderRadius: '50%', flexShrink: 0, border: 'none',
+                                    background: w.prize_handed_out ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)',
+                                    color: w.prize_handed_out ? '#4ade80' : 'rgba(248,250,252,0.25)',
+                                    fontSize: '0.78rem', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   }}
                                 >
