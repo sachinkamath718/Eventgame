@@ -29,6 +29,7 @@ export default function AdminSessionPage() {
   const [confirm, setConfirm]               = useState<Participant | null>(null)
   const [manualName, setManualName]         = useState('')
   const [addingManual, setAddingManual]     = useState(false)
+  const [grandPrizeStock, setGrandPrizeStock] = useState<{quantity: number, claimed: number} | null>(null)
 
   const supabase   = createClient()
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -46,6 +47,7 @@ export default function AdminSessionPage() {
     const s: Session | null = data.session ?? null
     setSession(s)
     setParticipants(data.participants ?? [])
+    setGrandPrizeStock(data.grandPrizeStock ?? null)
 
     if (s?.winner_registration_id && !s.is_active) {
       const fromList = (data.participants as Participant[]).find(
@@ -107,6 +109,10 @@ export default function AdminSessionPage() {
         body: JSON.stringify({ eventId: id }),
       })
       const data = await res.json()
+      if (data.error) {
+        alert(data.error)
+        return
+      }
       setSession(data.session)
       setParticipants([])
     } finally { setStarting(false) }
@@ -360,12 +366,26 @@ export default function AdminSessionPage() {
               All registered participants see their wheel spinning live until you select someone.
             </p>
             <div style={{
-              padding: '0.625rem 0.875rem', marginBottom: '1.75rem',
+              padding: '0.625rem 0.875rem', marginBottom: '0.75rem',
               background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
               borderRadius: '0.65rem', fontSize: '0.78rem', color: 'rgba(248,250,252,0.45)',
             }}>
               🔒 Event will be locked while the session is live
             </div>
+            
+            {grandPrizeStock && (
+              <div style={{
+                padding: '0.625rem 0.875rem', marginBottom: '1.75rem',
+                background: grandPrizeStock.claimed >= grandPrizeStock.quantity ? 'rgba(248,113,113,0.08)' : 'rgba(34,197,94,0.06)',
+                border: grandPrizeStock.claimed >= grandPrizeStock.quantity ? '1px solid rgba(248,113,113,0.2)' : '1px solid rgba(34,197,94,0.2)',
+                borderRadius: '0.65rem', fontSize: '0.82rem', 
+                color: grandPrizeStock.claimed >= grandPrizeStock.quantity ? '#fca5a5' : '#4ade80',
+                fontWeight: 600
+              }}>
+                📦 Grand Prize Stock: {grandPrizeStock.quantity - grandPrizeStock.claimed} remaining (out of {grandPrizeStock.quantity})
+              </div>
+            )}
+            
             <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
               <label style={{
                 display: 'block', fontSize: '0.78rem', fontWeight: 600,

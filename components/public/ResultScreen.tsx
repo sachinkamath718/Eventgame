@@ -60,13 +60,12 @@ export default function ResultScreen({
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareCaption)
-        alert('✨ Caption copied to clipboard!\n\nPaste it into your LinkedIn post to share your experience.')
       }
     } catch (err) {
       console.error('Failed to copy', err)
     }
     // Always open LinkedIn after attempting to copy
-    window.open('https://www.linkedin.com/feed/', '_blank')
+    window.open('https://www.linkedin.com/feed/?shareActive=true', '_blank')
   }
 
   return (

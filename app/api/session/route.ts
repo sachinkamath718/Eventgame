@@ -40,7 +40,30 @@ export async function GET(req: NextRequest) {
     .gte('created_at', session.started_at)
     .order('created_at', { ascending: false })
 
-  return NextResponse.json({ session, participants: participants ?? [] })
+  // Look up grand prize stock
+  const { data: prizes } = await supabase
+    .from('prizes')
+    .select('id, name, quantity, is_grand_prize, rank')
+    .eq('event_id', eventId)
+
+  let grandPrize = null
+  let grandPrizeStock = { quantity: 0, claimed: 0 }
+  
+  if (prizes && prizes.length > 0) {
+    grandPrize = prizes.find(p => p.is_grand_prize) || prizes.find(p => p.rank === 1)
+    if (grandPrize && grandPrize.quantity != null) {
+      const { count } = await supabase
+        .from('registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('game_result', 'won')
+        .eq('prize_id', grandPrize.id)
+      
+      grandPrizeStock = { quantity: grandPrize.quantity, claimed: count || 0 }
+    }
+  }
+
+  return NextResponse.json({ session, participants: participants ?? [], grandPrizeStock })
 }
 
 // POST — start session
@@ -56,6 +79,29 @@ export async function POST(req: NextRequest) {
     .update({ is_active: false, ended_at: new Date().toISOString() })
     .eq('event_id', eventId)
     .eq('is_active', true)
+
+  // Verify stock before starting
+  const { data: prizes } = await supabase
+    .from('prizes')
+    .select('id, quantity, is_grand_prize, rank')
+    .eq('event_id', eventId)
+
+  let grandPrize = null
+  if (prizes && prizes.length > 0) {
+    grandPrize = prizes.find(p => p.is_grand_prize) || prizes.find(p => p.rank === 1)
+    if (grandPrize && grandPrize.quantity != null) {
+      const { count } = await supabase
+        .from('registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId)
+        .eq('game_result', 'won')
+        .eq('prize_id', grandPrize.id)
+      
+      if ((count || 0) >= grandPrize.quantity) {
+        return NextResponse.json({ error: 'Grand Prize is out of stock!' }, { status: 400 })
+      }
+    }
+  }
 
   const { data: session, error } = await supabase
     .from('sessions')
