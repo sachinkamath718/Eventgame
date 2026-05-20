@@ -90,6 +90,7 @@ export default function NewEventPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, slug: finalSlug, game_type: 'spin_wheel',
+          booth_number: boothNumber,
           form_fields: DEFAULT_FIELDS,
           ui_config: { bgColor: '#0a0a1a', bgColor2: '#312e81', accentColor: '#f59e0b' },
           prizes: DEFAULT_PRIZES,
@@ -131,7 +132,7 @@ export default function NewEventPage() {
       designations: r.designations.split(',').map((d: string) => d.trim()).filter(Boolean),
       prize_rank: r.prize_rank, win_probability: r.win_probability,
     })),
-  }), [saved, name, gameType, fields, bgColor, bgColor2, accent, heading, logoUrl, footerText, prizes, rules])
+  }), [saved, name, gameType, fields, boothNumber, bgColor, bgColor2, accent, heading, logoUrl, footerText, prizes, rules])
 
   const autoSave = useCallback(async (): Promise<void> => {
     if (!saved) return
@@ -205,6 +206,11 @@ export default function NewEventPage() {
               <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.3)', display: 'block', marginTop: '0.3rem' }}>
                 {origin}/{eventSlug || slugify(name) || 'your-event'}
               </span>
+            </div>
+            <div>
+              <label style={L}>Booth Number</label>
+              <input style={F} value={boothNumber} placeholder="e.g. B12, Hall 3, Gate A" onChange={e => setBooth(e.target.value)} />
+              <span style={{ fontSize: '0.72rem', color: 'rgba(248,250,252,0.35)', display: 'block', marginTop: '0.25rem' }}>Shown on winner&apos;s result screen as &quot;Show this at Booth [X]&quot;</span>
             </div>
             <button onClick={createEvent} disabled={creating || !name.trim()} style={{
               padding: '1rem', border: 'none', borderRadius: '0.875rem', color: '#fff',
