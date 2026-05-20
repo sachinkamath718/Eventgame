@@ -39,7 +39,7 @@ export default function EditEventPage() {
   const [error, setError]     = useState('')
   const [origin, setOrigin]   = useState('')
 
-  type Winner = { id: string; name: string; designation: string; company: string; email: string; prize_name: string; prize_rank_won: number; prize_handed_out: boolean; is_grand_prize_winner: boolean; created_at: string }
+  type Winner = { id: string; name: string; designation: string; company: string; email: string; prize_name: string; prize_rank_won: number; prize_handed_out: boolean; is_grand_prize_winner: boolean; game_result: string; created_at: string }
   const [winners, setWinners]         = useState<Winner[]>([])
   const [winnersLoading, setWinnersLoading] = useState(false)
   const [handingOut, setHandingOut]   = useState<string | null>(null)
