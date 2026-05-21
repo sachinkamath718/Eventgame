@@ -685,7 +685,7 @@ export default function EditEventPage() {
                 </div>
               ) : (
                 /* ── Prize-grouped columns ── */
-                <div style={{ display: 'flex', gap: '0.875rem', overflowX: 'auto', alignItems: 'start', paddingBottom: '0.5rem' }}>
+                <div className="winners-col-grid">
                   {[
                     // Non-consolation prizes sorted by rank
                     ...prizes.filter(p => !p.is_consolation && !p.is_grand_prize).sort((a,b) => a.rank - b.rank),
@@ -713,11 +713,10 @@ export default function EditEventPage() {
                       : '#60a5fa'
 
                     return (
-                      <div key={p.rank} style={{
+                      <div key={p.rank} className="winners-col-card" style={{
                         background: 'rgba(255,255,255,0.02)',
                         border: `1px solid ${soldOut ? 'rgba(248,113,113,0.25)' : `rgba(${isConsolation?'100,116,139':'255,255,255'},0.09)`}`,
-                        borderRadius: '1rem', overflow: 'hidden', flexShrink: 0,
-                        width: 260, minWidth: 220,
+                        borderRadius: '1rem', overflow: 'hidden',
                       }}>
                         {/* Column header */}
                         <div style={{
@@ -739,7 +738,7 @@ export default function EditEventPage() {
                         </div>
 
                         {/* Rows — slim, divider-separated */}
-                        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                        <div className="winners-rows-list">
                           {colWinners.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: 'rgba(248,250,252,0.18)', fontSize: '0.72rem' }}>None yet</div>
                           ) : colWinners.map((w, idx) => (

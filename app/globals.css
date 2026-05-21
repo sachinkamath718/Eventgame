@@ -360,6 +360,24 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 /* Public game: wheel container */
 .wheel-container { overflow-x: hidden; }
 
+/* Winners prize columns */
+.winners-col-grid {
+  display: flex;
+  gap: 0.875rem;
+  overflow-x: auto;
+  align-items: flex-start;
+  padding-bottom: 0.5rem;
+}
+.winners-col-card {
+  flex-shrink: 0;
+  width: 260px;
+  min-width: 220px;
+}
+.winners-rows-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 @media (max-width: 768px) {
   /* Prevent the page itself from scrolling sideways */
   body { overflow-x: hidden; }
@@ -425,6 +443,23 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 
   /* ── Public page tweaks ── */
   .wheel-container canvas { max-width: 280px !important; max-height: 280px !important; }
+
+  /* ── Winners tab: stack prize columns vertically on mobile ── */
+  .winners-col-grid {
+    flex-direction: column !important;
+    overflow-x: hidden !important;
+    gap: 0.625rem !important;
+  }
+  .winners-col-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+  }
+  /* No inner scroll cap on mobile — all names show, page scrolls normally */
+  .winners-rows-list {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
 }
 
 @media (max-width: 480px) {
