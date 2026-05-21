@@ -40,17 +40,10 @@ export default function SpinWheelGame({ prizes, targetRank, won, onDone, session
   const imgCache   = useRef<Map<string, HTMLImageElement>>(new Map())
   const supabase   = createClient()
 
-  // Filter out grand prizes AND out-of-stock prizes from the wheel
+  // Show all prizes on the wheel — grand prizes are managed via session, so exclude them.
+  // Out-of-stock prizes stay visible; the server-side result determines the outcome (Better Luck Next Time).
   const wheelPrizes = prizes
-    .filter(p => {
-      if (p.is_grand_prize === true) return false
-      // Remove 0-stock non-consolation prizes
-      if (!p.is_consolation && p.quantity != null && p.quantity > 0) {
-        const claimed = p.claimed ?? 0
-        if (claimed >= p.quantity) return false
-      }
-      return true
-    })
+    .filter(p => p.is_grand_prize !== true)
     .sort((a, b) => Number(a.rank) - Number(b.rank))
     .filter((p, i, arr) => i === 0 || p.rank !== arr[i - 1].rank)
     .slice(0, 8)
