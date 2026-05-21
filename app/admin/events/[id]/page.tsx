@@ -223,14 +223,14 @@ export default function EditEventPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d0d1f', color: '#f8fafc', fontFamily: 'Inter,sans-serif' }}>
-      <header style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', position: 'sticky', top: 0, zIndex: 50 }}>
+      <header className="evt-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.02)', position: 'sticky', top: 0, zIndex: 50, flexWrap: 'wrap', gap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <a href="/admin" style={{ color: 'rgba(248,250,252,0.5)', textDecoration: 'none', fontSize: '0.875rem' }}>← Admin</a>
           <span style={{ color: 'rgba(255,255,255,0.2)' }}>|</span>
-          <h1 style={{ fontWeight: 700, fontSize: '1rem', margin: 0 }}>Edit: {name}</h1>
+          <h1 className="evt-header-title" style={{ fontWeight: 700, margin: 0 }}>Edit: {name}</h1>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button onClick={() => router.push(`/admin/events/${id}/session`)} style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#fcd34d', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+        <div className="evt-header-actions">
+          <button className="grand-prize-btn" onClick={() => router.push(`/admin/events/${id}/session`)} style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#fcd34d', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
             🎰 Grand Prize Session
           </button>
           <a href={`/${slug}`} target="_blank" rel="noreferrer" style={{ padding: '0.6rem 1rem', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(248,250,252,0.6)', textDecoration: 'none', fontSize: '0.8rem' }}>
@@ -245,10 +245,28 @@ export default function EditEventPage() {
       <div style={{ maxWidth: 1060, margin: '0 auto', padding: '1.5rem 1.5rem 3rem' }}>
         {error && <div style={{ padding: '0.75rem 1rem', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', marginBottom: '1.25rem' }}>⚠️ {error}</div>}
 
-        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+        <div className="evt-layout">
 
-          {/* ── Left sidebar nav ── */}
-          <nav style={{
+          {/* Mobile horizontal tab bar (visible only on small screens) */}
+          <div className="evt-mobile-tabs">
+            {tabs.map((t, i) => (
+              <button
+                key={i}
+                className="evt-mobile-tab-btn"
+                onClick={() => { setTab(i); if (i === 7 && winners.length === 0) loadWinners() }}
+                style={{
+                  background: tab === i ? '#7c3aed' : 'rgba(255,255,255,0.06)',
+                  color: tab === i ? '#fff' : 'rgba(248,250,252,0.55)',
+                  fontWeight: tab === i ? 700 : 500,
+                }}
+              >
+                <span>{t.icon}</span>{t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Left sidebar nav (hidden on mobile) ── */}
+          <nav className="evt-sidebar" style={{
             width: 170, flexShrink: 0,
             background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.08)',
@@ -281,7 +299,7 @@ export default function EditEventPage() {
           </nav>
 
           {/* ── Main content panel ── */}
-          <div style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '1.75rem' }}>
+          <div className="evt-content" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem', padding: '1.25rem' }}>
 
           {/* TAB 0: Details */}
           {tab === 0 && (
@@ -625,14 +643,14 @@ export default function EditEventPage() {
               </div>
 
               {/* Summary bar */}
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div className="winners-stats">
                 {[
                   { label: 'Total Registrations', val: winners.length, color: '#a78bfa' },
                   { label: 'Winners', val: winners.filter(w => w.game_result === 'won').length, color: '#4ade80' },
                   { label: 'Handed Out', val: winners.filter(w => w.prize_handed_out).length, color: '#34d399' },
                   { label: 'Better Luck', val: winners.filter(w => w.game_result !== 'won').length, color: '#94a3b8' },
                 ].map(s => (
-                  <div key={s.label} style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.625rem', padding: '0.625rem 1rem', flex: 1, minWidth: 100 }}>
+                  <div key={s.label} className="winners-stat-item" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0.625rem', padding: '0.625rem 1rem' }}>
                     <div style={{ fontSize: '1.3rem', fontWeight: 800, color: s.color }}>{s.val}</div>
                     <div style={{ fontSize: '0.68rem', color: 'rgba(248,250,252,0.35)', marginTop: '0.1rem' }}>{s.label}</div>
                   </div>

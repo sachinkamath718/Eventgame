@@ -258,12 +258,12 @@ export default function AdminSessionPage() {
       )}
 
       {/* Header */}
-      <header style={{
+      <header className="evt-header" style={{
         borderBottom: '1px solid rgba(255,255,255,0.07)',
-        padding: '1rem 2rem',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         background: 'rgba(255,255,255,0.015)',
         position: 'sticky', top: 0, zIndex: 50,
+        flexWrap: 'wrap', gap: '0.5rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button onClick={() => router.push(`/admin/events/${id}`)} style={{
@@ -309,8 +309,8 @@ export default function AdminSessionPage() {
       </header>
 
       <div style={{
-        maxWidth: 720, margin: '0 auto', padding: '2rem 1.5rem',
-        display: 'flex', flexDirection: 'column', gap: '1.5rem',
+        maxWidth: 720, margin: '0 auto', padding: '1.25rem 1rem',
+        display: 'flex', flexDirection: 'column', gap: '1.25rem',
       }}>
 
         {/* Prize Stock Panel */}

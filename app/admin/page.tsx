@@ -48,15 +48,15 @@ export default function AdminDashboard() {
   return (
     <div style={{ minHeight: '100vh', background: '#0d0d1f', color: '#f8fafc' }}>
       {/* Header */}
-      <header style={{
+      <header className="evt-header" style={{
         borderBottom: '1px solid rgba(255,255,255,0.08)',
-        padding: '1rem 2rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         background: 'rgba(255,255,255,0.02)',
         backdropFilter: 'blur(10px)',
         position: 'sticky', top: 0, zIndex: 50,
+        flexWrap: 'wrap', gap: '0.5rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -93,13 +93,14 @@ export default function AdminDashboard() {
         </Link>
       </header>
 
-      <main style={{ padding: '2rem', maxWidth: 900, margin: '0 auto' }}>
+      <main style={{ padding: '1.25rem', maxWidth: 900, margin: '0 auto' }}>
         {/* Summary stats */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '1.5rem 2rem', background: 'rgba(255,255,255,0.02)',
+          flexWrap: 'wrap', gap: '1rem',
+          padding: '1rem 1.5rem', background: 'rgba(255,255,255,0.02)',
           border: '1px solid rgba(255,255,255,0.06)', borderRadius: '1rem',
-          marginBottom: '2rem', backdropFilter: 'blur(10px)'
+          marginBottom: '1.5rem', backdropFilter: 'blur(10px)'
         }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'rgba(248,250,252,0.45)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Total Events</div>
@@ -159,8 +160,9 @@ export default function AdminDashboard() {
                 key={event.id}
                 className="glass-card"
                 style={{
-                  padding: '1.25rem 1.5rem',
-                  display: 'flex', alignItems: 'center', gap: '1rem',
+                  padding: '1rem 1.25rem',
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  flexWrap: 'wrap',
                   transition: 'border-color 0.2s',
                   borderColor: event.is_active ? 'rgba(124,62,237,0.3)' : 'rgba(255,255,255,0.08)',
                 }}
