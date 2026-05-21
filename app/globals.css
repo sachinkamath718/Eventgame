@@ -341,7 +341,7 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 
 /* ── Responsive ─────────────────────────────────────────── */
 
-/* ── Admin edit page: sidebar → top scroll tabs on mobile ── */
+/* ── Admin edit page: sidebar → grid tabs on mobile ── */
 .evt-layout        { display: flex; gap: 1.25rem; align-items: flex-start; }
 .evt-sidebar       { display: block; }
 .evt-mobile-tabs   { display: none; }
@@ -361,32 +361,49 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 .wheel-container { overflow-x: hidden; }
 
 @media (max-width: 768px) {
+  /* Prevent the page itself from scrolling sideways */
+  body { overflow-x: hidden; }
+
   /* ── Admin edit page ── */
   .evt-layout { flex-direction: column; gap: 0; }
   .evt-sidebar { display: none !important; }
 
+  /* 4-column 2-row grid — all 8 tabs visible, no overflow */
   .evt-mobile-tabs {
-    display: flex !important;
-    overflow-x: auto;
-    gap: 0.375rem;
-    padding: 0.75rem;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.3rem;
+    padding: 0.5rem;
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 0.875rem;
-    margin-bottom: 1rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    margin-bottom: 0.875rem;
+    width: 100%;
+    box-sizing: border-box;
   }
-  .evt-mobile-tabs::-webkit-scrollbar { display: none; }
 
   .evt-mobile-tab-btn {
-    flex-shrink: 0;
-    display: flex; align-items: center; gap: 0.35rem;
-    padding: 0.45rem 0.75rem;
-    border-radius: 0.5rem; border: none; cursor: pointer;
-    font-size: 0.75rem; font-weight: 500; white-space: nowrap;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.45rem 0.25rem;
+    border-radius: 0.5rem;
+    border: none;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
     transition: all 0.15s;
+    min-width: 0;
+    overflow: hidden;
   }
+
+  /* Show icon large, label small below */
+  .evt-mobile-tab-btn span:first-child { font-size: 1.1rem; line-height: 1; }
 
   .evt-header { padding: 0.75rem 1rem !important; }
   .evt-header-title { font-size: 0.85rem !important; }
@@ -411,6 +428,10 @@ h1, h2, h3, h4, h5 { font-family: var(--font-heading); }
 }
 
 @media (max-width: 480px) {
-  .evt-header-actions .grand-prize-btn { display: none; } /* hide on very small, access via session direct */
+  .evt-header-actions .grand-prize-btn { display: none; }
   .winners-stats { grid-template-columns: 1fr 1fr !important; }
+  /* On very small phones use 4 cols still but compress */
+  .evt-mobile-tabs { gap: 0.2rem; padding: 0.4rem; }
+  .evt-mobile-tab-btn { font-size: 0.6rem; padding: 0.4rem 0.15rem; }
+  .evt-mobile-tab-btn span:first-child { font-size: 1rem; }
 }

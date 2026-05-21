@@ -260,7 +260,8 @@ export default function EditEventPage() {
                   fontWeight: tab === i ? 700 : 500,
                 }}
               >
-                <span>{t.icon}</span>{t.label}
+                <span>{t.icon}</span>
+                <span>{t.label}</span>
               </button>
             ))}
           </div>
